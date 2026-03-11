@@ -47,7 +47,7 @@ class WPFG_Admin {
                 $title,
                 $cap,
                 $slug,
-                array( __CLASS__, 'page_' . str_replace( 'wpfg-', '', str_replace( '-', '_', $slug ) ) )
+                array( __CLASS__, 'page_' . str_replace( '-', '_', str_replace( 'wpfg-', '', $slug ) ) )
             );
         }
     }

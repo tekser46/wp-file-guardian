@@ -45,7 +45,11 @@ class WPFG_Filesystem {
         if ( ! file_exists( $path ) ) {
             return new WP_Error( 'not_found', __( 'File does not exist.', 'wp-file-guardian' ) );
         }
-        return wp_delete_file_from_server( $path ) || @unlink( $path );
+        wp_delete_file( $path );
+        if ( file_exists( $path ) ) {
+            @unlink( $path );
+        }
+        return ! file_exists( $path );
     }
 
     /**
