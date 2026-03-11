@@ -199,6 +199,13 @@ class WPFG_DB_Scanner {
                 continue;
             }
 
+            // Skip transients — these are temporary cache entries created by
+            // WordPress core, plugins, themes, and hosting providers. They
+            // frequently contain base64/serialized data that is not malicious.
+            if ( strpos( $row->option_name, '_transient_' ) === 0 || strpos( $row->option_name, '_site_transient_' ) === 0 ) {
+                continue;
+            }
+
             // Only scan string values > 20 chars.
             if ( strlen( $row->option_value ) < 20 ) {
                 continue;
