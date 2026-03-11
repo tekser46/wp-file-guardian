@@ -122,15 +122,41 @@
         $total_pages = ceil( $results['total'] / 50 );
         $current     = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1;
         if ( $total_pages > 1 ) :
+            // Smart pagination: show first, last, current ±2, with ellipsis.
+            $range  = 2;
+            $show   = array();
+            for ( $i = 1; $i <= $total_pages; $i++ ) {
+                if ( $i === 1 || $i === $total_pages || ( $i >= $current - $range && $i <= $current + $range ) ) {
+                    $show[] = $i;
+                }
+            }
         ?>
         <div class="wpfg-pagination">
-            <?php for ( $i = 1; $i <= $total_pages; $i++ ) : ?>
-                <?php if ( $i === $current ) : ?>
-                    <span class="wpfg-page-current"><?php echo esc_html( $i ); ?></span>
+            <?php if ( $current > 1 ) : ?>
+                <a href="<?php echo esc_url( add_query_arg( 'paged', $current - 1 ) ); ?>">&laquo;</a>
+            <?php endif; ?>
+            <?php
+            $prev = 0;
+            foreach ( $show as $page ) :
+                if ( $prev && $page - $prev > 1 ) :
+            ?>
+                    <span class="wpfg-page-ellipsis">&hellip;</span>
+            <?php
+                endif;
+                if ( $page === $current ) :
+            ?>
+                    <span class="wpfg-page-current"><?php echo esc_html( $page ); ?></span>
                 <?php else : ?>
-                    <a href="<?php echo esc_url( add_query_arg( 'paged', $i ) ); ?>"><?php echo esc_html( $i ); ?></a>
-                <?php endif; ?>
-            <?php endfor; ?>
+                    <a href="<?php echo esc_url( add_query_arg( 'paged', $page ) ); ?>"><?php echo esc_html( $page ); ?></a>
+                <?php endif;
+                $prev = $page;
+            endforeach; ?>
+            <?php if ( $current < $total_pages ) : ?>
+                <a href="<?php echo esc_url( add_query_arg( 'paged', $current + 1 ) ); ?>">&raquo;</a>
+            <?php endif; ?>
+            <span class="wpfg-pagination-info">
+                <?php printf( esc_html__( 'Page %1$d of %2$d (%3$d results)', 'wp-file-guardian' ), $current, $total_pages, $results['total'] ); ?>
+            </span>
         </div>
         <?php endif; ?>
 
