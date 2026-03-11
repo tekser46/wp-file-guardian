@@ -297,6 +297,34 @@ class WPFG_Admin {
 
     public static function page_firewall() {
         if ( ! WPFG_Helpers::check_capability() ) wp_die( 'Unauthorized.' );
+
+        // Handle form POST actions.
+        if ( isset( $_POST['wpfg_action'] ) ) {
+            $action = sanitize_text_field( $_POST['wpfg_action'] );
+
+            if ( 'add_firewall_rule' === $action && check_admin_referer( 'wpfg_firewall_add_rule', 'wpfg_fw_nonce' ) ) {
+                WPFG_Firewall::add_rule(
+                    sanitize_text_field( $_POST['rule_type'] ),
+                    sanitize_text_field( $_POST['rule_value'] ),
+                    sanitize_text_field( $_POST['rule_notes'] )
+                );
+                wp_safe_redirect( admin_url( 'admin.php?page=wpfg-firewall&msg=added' ) );
+                exit;
+            }
+
+            if ( 'delete_firewall_rule' === $action && check_admin_referer( 'wpfg_firewall_delete_rule', 'wpfg_fw_nonce' ) ) {
+                WPFG_Firewall::delete_rule( absint( $_POST['rule_id'] ) );
+                wp_safe_redirect( admin_url( 'admin.php?page=wpfg-firewall&msg=deleted' ) );
+                exit;
+            }
+
+            if ( 'toggle_firewall_rule' === $action && check_admin_referer( 'wpfg_firewall_toggle_rule', 'wpfg_fw_nonce' ) ) {
+                WPFG_Firewall::toggle_rule( absint( $_POST['rule_id'] ), absint( $_POST['rule_active'] ) );
+                wp_safe_redirect( admin_url( 'admin.php?page=wpfg-firewall&msg=updated' ) );
+                exit;
+            }
+        }
+
         $stats = WPFG_Firewall::get_stats();
         $rules = WPFG_Firewall::get_rules( array(
             'per_page' => 20,

@@ -256,10 +256,8 @@ class WPFG_Scanner {
                     }
                 }
 
-                // Send instant email for critical findings.
-                if ( 'critical' === $max_severity && WPFG_Settings::get( 'realtime_email_critical', true ) ) {
-                    WPFG_Notifications::notify_realtime_critical( $file_path, $descs );
-                }
+                // Note: Email notifications are sent once when the scan completes,
+                // not per-file. See WPFG_Cron::run_scheduled_scan() and AJAX scan completion.
             } elseif ( ! empty( $notices ) ) {
                 // Store non-threat notices separately as 'notice' severity.
                 $notice_descs = array();

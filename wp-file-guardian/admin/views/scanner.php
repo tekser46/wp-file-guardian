@@ -18,13 +18,13 @@
             </div>
         </div>
         <div class="wpfg-scan-actions">
-            <select id="wpfg-scan-type" class="wpfg-select">
-                <option value="full"><?php esc_html_e( 'Full Scan', 'wp-file-guardian' ); ?></option>
-                <option value="quick"><?php esc_html_e( 'Quick Scan (wp-content only)', 'wp-file-guardian' ); ?></option>
-            </select>
-            <button type="button" class="wpfg-btn wpfg-btn-primary" id="wpfg-start-scan">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                <?php esc_html_e( 'Start Scan', 'wp-file-guardian' ); ?>
+            <button type="button" class="wpfg-btn wpfg-btn-primary wpfg-start-scan" data-scan-type="full">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <?php esc_html_e( 'Full Scan', 'wp-file-guardian' ); ?>
+            </button>
+            <button type="button" class="wpfg-btn wpfg-btn-secondary wpfg-start-scan" data-scan-type="quick">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <?php esc_html_e( 'Quick Scan', 'wp-file-guardian' ); ?>
             </button>
             <button type="button" class="wpfg-btn wpfg-btn-ghost" id="wpfg-cancel-scan" style="display:none;">
                 <?php esc_html_e( 'Cancel', 'wp-file-guardian' ); ?>

@@ -239,22 +239,17 @@
     width: 120px;
     height: 120px;
     border-radius: 50%;
-    border: 6px solid #e5e5e5;
-    border-top-color: var(--gauge-color, #2271b1);
-    border-right-color: var(--gauge-color, #2271b1);
     position: relative;
     background:
         conic-gradient(
             var(--gauge-color, #2271b1) calc(var(--gauge-pct, 0) * 3.6deg),
             #e5e5e5 calc(var(--gauge-pct, 0) * 3.6deg)
         );
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #fff calc(100% - 7px));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #fff calc(100% - 7px));
 }
 .wpfg-gauge-circle::after {
     content: '';
     position: absolute;
-    inset: 6px;
+    inset: 8px;
     border-radius: 50%;
     background: #fff;
 }

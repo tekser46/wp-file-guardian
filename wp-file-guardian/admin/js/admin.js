@@ -44,11 +44,12 @@
             var scanning = false;
             var sessionId = 0;
 
-            $('#wpfg-start-scan').on('click', function() {
+            $('.wpfg-start-scan').on('click', function() {
                 if (scanning) return;
                 scanning = true;
-                var type = $('#wpfg-scan-type').val();
-                $(this).prop('disabled', true).addClass('wpfg-btn-scanning');
+                var type = $(this).data('scan-type') || 'full';
+                $('.wpfg-start-scan').prop('disabled', true);
+                $(this).addClass('wpfg-btn-scanning');
                 $('#wpfg-cancel-scan').show();
                 $('#wpfg-scan-progress').slideDown(300);
                 $('#wpfg-scan-status').text(wpfg.i18n.scanning);
@@ -63,7 +64,7 @@
                         self.processBatch(sessionId, 0, resp.data.total);
                     } else {
                         scanning = false;
-                        $('#wpfg-start-scan').prop('disabled', false).removeClass('wpfg-btn-scanning');
+                        $('.wpfg-start-scan').prop('disabled', false).removeClass('wpfg-btn-scanning');
                         $('#wpfg-scan-status').text(resp.data ? resp.data.message : wpfg.i18n.error);
                     }
                 });
@@ -92,7 +93,7 @@
             this.ajax('wpfg_scan_batch', { session_id: sessionId, offset: offset }, function(resp) {
                 if (!resp.success) {
                     $('#wpfg-scan-status').text(resp.data ? resp.data.message : wpfg.i18n.error);
-                    $('#wpfg-start-scan').prop('disabled', false).removeClass('wpfg-btn-scanning');
+                    $('.wpfg-start-scan').prop('disabled', false).removeClass('wpfg-btn-scanning');
                     return;
                 }
                 var d = resp.data;
@@ -106,7 +107,7 @@
                 if (d.done) {
                     self.updateRing(100);
                     $('#wpfg-scan-status').text(wpfg.i18n.scan_complete);
-                    $('#wpfg-start-scan').prop('disabled', false).removeClass('wpfg-btn-scanning');
+                    $('.wpfg-start-scan').prop('disabled', false).removeClass('wpfg-btn-scanning');
                     $('#wpfg-cancel-scan').hide();
                     setTimeout(function() {
                         window.location.href = wpfg.ajax_url.replace('admin-ajax.php', 'admin.php') + '?page=wpfg-scanner&session=' + sessionId;
@@ -824,6 +825,7 @@
             $('#wpfg-start-vuln-scan').on('click', function() {
                 var btn = $(this);
                 btn.prop('disabled', true);
+                $('#wpfg-vuln-progress').slideDown(300);
                 $('#wpfg-vuln-status').text('Scanning plugins and themes...');
 
                 self.ajax('wpfg_vuln_scan_start', {}, function(resp) {

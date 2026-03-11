@@ -125,17 +125,25 @@ class WPFG_Notifications {
      * Notify on critical scan findings.
      */
     public static function notify_critical_findings( $session_id, $critical_count ) {
+        $stats = WPFG_Scanner::get_dashboard_stats();
+
         $subject = sprintf(
             /* translators: %d: number of critical issues */
-            __( '%d Critical Issues Found During Scan', 'wp-file-guardian' ),
+            __( 'Scan Report: %d Critical Issues Found', 'wp-file-guardian' ),
             $critical_count
         );
-        $message = sprintf(
-            __( "A file scan has completed and found %d critical issue(s).\n\nPlease review the findings in your WordPress dashboard:\n%s", 'wp-file-guardian' ),
-            $critical_count,
-            admin_url( 'admin.php?page=wpfg-scanner&session=' . $session_id )
-        );
-        self::send_email( $subject, $message, 'critical' );
+
+        $lines = array();
+        $lines[] = __( 'A file scan has completed. Here is the summary:', 'wp-file-guardian' );
+        $lines[] = '';
+        $lines[] = sprintf( __( 'Critical: %d', 'wp-file-guardian' ), $critical_count );
+        $lines[] = sprintf( __( 'Warnings: %d', 'wp-file-guardian' ), $stats['warning_count'] );
+        $lines[] = sprintf( __( 'Info: %d', 'wp-file-guardian' ), $stats['info_count'] );
+        $lines[] = sprintf( __( 'Total files scanned: %d', 'wp-file-guardian' ), $stats['total_files'] );
+        $lines[] = '';
+        $lines[] = sprintf( __( 'Review the findings in your dashboard: %s', 'wp-file-guardian' ), admin_url( 'admin.php?page=wpfg-scanner&session=' . $session_id ) );
+
+        self::send_email( $subject, implode( "\n", $lines ), 'critical' );
     }
 
     /**

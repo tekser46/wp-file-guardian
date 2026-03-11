@@ -92,10 +92,10 @@ jQuery(function($) {
         $btn.prop('disabled', true).text('<?php echo esc_js( __( 'Saving...', 'wp-file-guardian' ) ); ?>');
 
         $.post(ajaxurl, {
-            action: 'wpfg_hardening_toggle',
+            action: 'wpfg_apply_hardening',
             key: key,
             value: value,
-            _wpnonce: '<?php echo wp_create_nonce( 'wpfg_hardening' ); ?>'
+            nonce: wpfg.nonce
         }, function(response) {
             if (response.success) {
                 location.reload();
@@ -115,8 +115,8 @@ jQuery(function($) {
         $btn.prop('disabled', true).text('<?php echo esc_js( __( 'Testing...', 'wp-file-guardian' ) ); ?>');
 
         $.post(ajaxurl, {
-            action: 'wpfg_hardening_test',
-            _wpnonce: '<?php echo wp_create_nonce( 'wpfg_hardening' ); ?>'
+            action: 'wpfg_test_hardening',
+            nonce: wpfg.nonce
         }, function(response) {
             if (response.success) {
                 var $tbody = $('#wpfg-hardening-test-results tbody').empty();

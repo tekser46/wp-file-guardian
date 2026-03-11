@@ -692,8 +692,27 @@ class WPFG_Ajax_Handler {
     public static function wpfg_2fa_generate_secret() {
         self::verify();
         $user_id = get_current_user_id();
-        $result  = WPFG_Two_Factor::generate_secret( $user_id );
-        wp_send_json_success( $result );
+
+        // Generate and store secret.
+        $secret    = WPFG_Two_Factor::generate_secret();
+        $encrypted = WPFG_Two_Factor::encrypt_secret( $secret );
+        update_user_meta( $user_id, 'wpfg_2fa_secret', $encrypted );
+        update_user_meta( $user_id, 'wpfg_2fa_enabled', '1' );
+
+        // Generate backup codes.
+        $backup_codes = WPFG_Two_Factor::generate_backup_codes( $user_id );
+
+        // Build QR URI.
+        $user  = wp_get_current_user();
+        $qr_uri = WPFG_Two_Factor::generate_qr_uri( $secret, $user->user_email );
+
+        WPFG_Logger::log( '2fa_enabled', '', 'success', sprintf( '2FA enabled for user %d', $user_id ) );
+
+        wp_send_json_success( array(
+            'secret'       => $secret,
+            'qr_uri'       => $qr_uri,
+            'backup_codes' => $backup_codes,
+        ) );
     }
 
     public static function wpfg_2fa_verify_setup() {

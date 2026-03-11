@@ -56,7 +56,7 @@
                 <p><?php esc_html_e( 'Enter a code from your authenticator app to verify it is configured correctly:', 'wp-file-guardian' ); ?></p>
                 <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
                     <input type="text" id="wpfg-2fa-test-code" class="regular-text" placeholder="<?php esc_attr_e( '000000', 'wp-file-guardian' ); ?>" maxlength="8" style="max-width: 200px; letter-spacing: 2px;" />
-                    <button type="button" class="wpfg-btn wpfg-btn-primary" id="wpfg-2fa-verify-btn">
+                    <button type="button" class="wpfg-btn wpfg-btn-primary" id="wpfg-2fa-verify">
                         <?php esc_html_e( 'Verify', 'wp-file-guardian' ); ?>
                     </button>
                     <span id="wpfg-2fa-verify-result" style="display:none;"></span>
@@ -70,7 +70,7 @@
                 <div id="wpfg-2fa-backup-codes" style="display:none; margin: 16px 0; padding: 16px; background: #f6f7f7; border-radius: 4px; font-family: monospace;">
                     <!-- Backup codes will be displayed here via AJAX -->
                 </div>
-                <button type="button" class="wpfg-btn wpfg-btn-secondary" id="wpfg-2fa-gen-backup">
+                <button type="button" class="wpfg-btn wpfg-btn-secondary" id="wpfg-2fa-regen-backup">
                     <?php esc_html_e( 'Generate New Backup Codes', 'wp-file-guardian' ); ?>
                 </button>
                 <p class="description" style="margin-top: 6px;"><?php esc_html_e( 'Warning: Generating new codes will invalidate all existing backup codes.', 'wp-file-guardian' ); ?></p>
@@ -81,11 +81,26 @@
                 <span class="wpfg-badge wpfg-badge-warning"><?php esc_html_e( 'Disabled', 'wp-file-guardian' ); ?></span>
                 <?php esc_html_e( 'Two-factor authentication is not enabled on your account.', 'wp-file-guardian' ); ?>
             </p>
-            <p><?php printf(
-                esc_html__( 'To enable 2FA, go to your %sprofile page%s and check the "Enable two-factor authentication" option.', 'wp-file-guardian' ),
-                '<a href="' . esc_url( get_edit_profile_url() ) . '#wpfg-2fa">',
-                '</a>'
-            ); ?></p>
+            <div id="wpfg-2fa-setup-section" style="margin-top: 16px;">
+                <button type="button" class="wpfg-btn wpfg-btn-primary" id="wpfg-2fa-enable">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <?php esc_html_e( 'Enable 2FA', 'wp-file-guardian' ); ?>
+                </button>
+                <span id="wpfg-2fa-enable-status" style="display:none; margin-left: 8px;"></span>
+            </div>
+            <!-- QR code will appear here after enabling -->
+            <div id="wpfg-2fa-new-setup" style="display:none; margin-top: 20px; padding-top: 16px; border-top: 1px solid #eee;">
+                <h3><?php esc_html_e( 'Scan QR Code', 'wp-file-guardian' ); ?></h3>
+                <p><?php esc_html_e( 'Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):', 'wp-file-guardian' ); ?></p>
+                <div id="wpfg-2fa-new-qr" style="margin: 16px 0; padding: 16px; background: #fff; display: inline-block; border: 1px solid #ddd; border-radius: 4px;"></div>
+                <p><strong><?php esc_html_e( 'Manual entry key:', 'wp-file-guardian' ); ?></strong> <code id="wpfg-2fa-new-secret"></code></p>
+                <div style="margin-top: 16px;">
+                    <h3><?php esc_html_e( 'Backup Codes', 'wp-file-guardian' ); ?></h3>
+                    <p><?php esc_html_e( 'Save these codes in a safe place. They can be used if you lose your authenticator app:', 'wp-file-guardian' ); ?></p>
+                    <div id="wpfg-2fa-new-backup" style="margin: 8px 0; padding: 16px; background: #f6f7f7; border-radius: 4px; font-family: monospace;"></div>
+                </div>
+                <p class="description"><?php esc_html_e( 'Reload the page after setting up your authenticator app to verify your configuration.', 'wp-file-guardian' ); ?></p>
+            </div>
         <?php endif; ?>
     </div>
 
@@ -199,6 +214,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 section.style.display = 'none';
                 showQrBtn.textContent = '<?php echo esc_js( __( 'Show QR Code', 'wp-file-guardian' ) ); ?>';
             }
+        });
+    }
+
+    // Enable 2FA button.
+    var enableBtn = document.getElementById('wpfg-2fa-enable');
+    if (enableBtn) {
+        enableBtn.addEventListener('click', function() {
+            enableBtn.disabled = true;
+            enableBtn.textContent = '<?php echo esc_js( __( 'Setting up...', 'wp-file-guardian' ) ); ?>';
+
+            jQuery.post(ajaxurl, {
+                action: 'wpfg_2fa_generate_secret',
+                nonce: wpfg.nonce
+            }, function(resp) {
+                if (resp.success) {
+                    var d = resp.data;
+                    document.getElementById('wpfg-2fa-new-secret').textContent = d.secret;
+                    document.getElementById('wpfg-2fa-new-qr').innerHTML =
+                        '<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' +
+                        encodeURIComponent(d.qr_uri) + '" width="200" height="200" alt="QR Code" />';
+
+                    if (d.backup_codes && d.backup_codes.length) {
+                        document.getElementById('wpfg-2fa-new-backup').innerHTML =
+                            d.backup_codes.map(function(c) { return '<div>' + c + '</div>'; }).join('');
+                    }
+
+                    document.getElementById('wpfg-2fa-setup-section').style.display = 'none';
+                    document.getElementById('wpfg-2fa-new-setup').style.display = 'block';
+                } else {
+                    alert(resp.data ? resp.data.message : '<?php echo esc_js( __( 'An error occurred.', 'wp-file-guardian' ) ); ?>');
+                    enableBtn.disabled = false;
+                    enableBtn.textContent = '<?php echo esc_js( __( 'Enable 2FA', 'wp-file-guardian' ) ); ?>';
+                }
+            });
         });
     }
 });

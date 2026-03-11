@@ -33,7 +33,7 @@
             </div>
         </div>
         <div class="wpfg-scan-actions">
-            <button type="button" class="wpfg-btn wpfg-btn-primary" id="wpfg-perm-scan-btn">
+            <button type="button" class="wpfg-btn wpfg-btn-primary" id="wpfg-check-permissions">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                 <?php esc_html_e( 'Scan Permissions', 'wp-file-guardian' ); ?>
             </button>
