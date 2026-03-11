@@ -258,14 +258,12 @@ class WPFG_Scanner {
 
                 // Note: Email notifications are sent once when the scan completes,
                 // not per-file. See WPFG_Cron::run_scheduled_scan() and AJAX scan completion.
-            } elseif ( ! empty( $notices ) ) {
-                // Store non-threat notices separately as 'notice' severity.
-                $notice_descs = array();
-                foreach ( $notices as $n ) {
-                    $notice_descs[] = $n['desc'];
-                }
-                self::save_result( $session_id, $file_path, $info, 'notice', $notices[0]['type'], implode( '; ', $notice_descs ) );
             }
+            // Non-threat notices (recently modified, large file, temp file, etc.)
+            // are NOT stored as scan results — they only appear as context when
+            // attached to a real finding above. Storing them separately would
+            // flood the results table with harmless informational entries and
+            // mislead users into thinking their site has security issues.
         }
 
         $processed = $offset + count( $batch );
