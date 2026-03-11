@@ -33,7 +33,60 @@ class WPFG_Notifications {
             home_url()
         );
 
-        return wp_mail( $to, $subject, $message . $footer, $headers );
+        $email_sent = wp_mail( $to, $subject, $message . $footer, $headers );
+
+        // Also send to Slack/Telegram if configured.
+        self::send_slack( $subject . "\n" . $message );
+        self::send_telegram( $subject . "\n" . $message );
+
+        return $email_sent;
+    }
+
+    /**
+     * Send a Slack webhook notification.
+     */
+    public static function send_slack( $text ) {
+        $url = WPFG_Settings::get( 'slack_webhook_url' );
+        if ( ! $url ) {
+            return false;
+        }
+
+        $payload = wp_json_encode( array(
+            'text'       => $text,
+            'username'   => 'WP File Guardian',
+            'icon_emoji' => ':shield:',
+        ) );
+
+        $response = wp_remote_post( $url, array(
+            'body'    => $payload,
+            'headers' => array( 'Content-Type' => 'application/json' ),
+            'timeout' => 10,
+        ) );
+
+        return ! is_wp_error( $response );
+    }
+
+    /**
+     * Send a Telegram bot notification.
+     */
+    public static function send_telegram( $text ) {
+        $token   = WPFG_Settings::get( 'telegram_bot_token' );
+        $chat_id = WPFG_Settings::get( 'telegram_chat_id' );
+        if ( ! $token || ! $chat_id ) {
+            return false;
+        }
+
+        $url = sprintf( 'https://api.telegram.org/bot%s/sendMessage', $token );
+        $response = wp_remote_post( $url, array(
+            'body'    => array(
+                'chat_id'    => $chat_id,
+                'text'       => $text,
+                'parse_mode' => 'HTML',
+            ),
+            'timeout' => 10,
+        ) );
+
+        return ! is_wp_error( $response );
     }
 
     /**

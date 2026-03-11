@@ -11,5 +11,6 @@ class WPFG_Deactivator {
         wp_clear_scheduled_hook( 'wpfg_scheduled_scan' );
         wp_clear_scheduled_hook( 'wpfg_scheduled_backup' );
         wp_clear_scheduled_hook( 'wpfg_cleanup_old_backups' );
+        wp_clear_scheduled_hook( 'wpfg_file_monitor_check' );
     }
 }

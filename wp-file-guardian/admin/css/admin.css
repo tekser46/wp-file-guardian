@@ -226,9 +226,87 @@
 .wpfg-mb { margin-bottom: 15px; }
 .wpfg-import-export textarea { margin-bottom: 8px; }
 
+/* Risk Score Gauge */
+.wpfg-risk-gauge {
+    text-align: center;
+    margin: 15px 0;
+}
+.wpfg-gauge-circle {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 6px solid #e5e5e5;
+    border-top-color: var(--gauge-color, #2271b1);
+    border-right-color: var(--gauge-color, #2271b1);
+    position: relative;
+    background:
+        conic-gradient(
+            var(--gauge-color, #2271b1) calc(var(--gauge-pct, 0) * 3.6deg),
+            #e5e5e5 calc(var(--gauge-pct, 0) * 3.6deg)
+        );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #fff calc(100% - 7px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #fff calc(100% - 7px));
+}
+.wpfg-gauge-circle::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    background: #fff;
+}
+.wpfg-gauge-score {
+    position: relative;
+    z-index: 1;
+    font-size: 2em;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--gauge-color, #2271b1);
+}
+.wpfg-gauge-grade {
+    position: relative;
+    z-index: 1;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--gauge-color, #2271b1);
+}
+
+/* Risk Factors */
+.wpfg-risk-factors {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0;
+    font-size: .9em;
+}
+.wpfg-risk-factors li {
+    padding: 3px 0 3px 18px;
+    position: relative;
+}
+.wpfg-risk-factors li::before {
+    position: absolute;
+    left: 0;
+    font-size: .9em;
+}
+.wpfg-factor-good::before { content: "\2714"; color: #00a32a; }
+.wpfg-factor-ok::before { content: "\25CF"; color: #dba617; }
+.wpfg-factor-bad::before { content: "\2716"; color: #d63638; }
+.wpfg-factor-pts {
+    float: right;
+    color: #d63638;
+    font-weight: 600;
+    font-size: .85em;
+}
+
+/* Text color helper */
+.wpfg-text-info { color: #2271b1; }
+
 /* Responsive */
 @media screen and (max-width: 782px) {
     .wpfg-dashboard-grid { grid-template-columns: 1fr; }
     .wpfg-stats-row { flex-direction: column; }
     .wpfg-filters { flex-direction: column; }
+    .wpfg-gauge-circle { width: 100px; height: 100px; }
 }

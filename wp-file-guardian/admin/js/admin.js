@@ -16,6 +16,8 @@
             this.bindBulk();
             this.bindModal();
             this.bindFileActions();
+            this.bindDBScanner();
+            this.bindMonitor();
         },
 
         // --- AJAX helper ---
@@ -451,6 +453,165 @@
         showModal: function(html) {
             $('#wpfg-modal-body').html(html);
             $('#wpfg-modal').show();
+        },
+
+        // --- DB Scanner ---
+        bindDBScanner: function() {
+            var self = this;
+            var dbSessionId = 0;
+            var dbSources = ['posts', 'options', 'comments', 'users', 'cron'];
+            var sourceIdx = 0;
+            var totalFindings = 0;
+
+            $('#wpfg-start-db-scan').on('click', function() {
+                var btn = $(this);
+                btn.prop('disabled', true);
+                $('#wpfg-db-scan-progress').show();
+                $('#wpfg-db-scan-status').text('Starting...');
+                sourceIdx = 0;
+                totalFindings = 0;
+
+                self.ajax('wpfg_db_scan_start', {}, function(resp) {
+                    if (resp.success) {
+                        dbSessionId = resp.data.session_id;
+                        self.dbScanNext(dbSessionId, dbSources, sourceIdx, totalFindings);
+                    } else {
+                        btn.prop('disabled', false);
+                        $('#wpfg-db-scan-status').text(resp.data ? resp.data.message : wpfg.i18n.error);
+                    }
+                });
+            });
+        },
+
+        dbScanNext: function(sessionId, sources, idx, totalFindings) {
+            var self = this;
+            if (idx >= sources.length) {
+                $('#wpfg-db-progress-fill').css('width', '100%');
+                $('#wpfg-db-scan-msg').text('Complete! ' + totalFindings + ' findings. Reloading...');
+                $('#wpfg-start-db-scan').prop('disabled', false);
+                setTimeout(function() { location.reload(); }, 1500);
+                return;
+            }
+
+            var source = sources[idx];
+            var pct = Math.round((idx / sources.length) * 100);
+            $('#wpfg-db-progress-fill').css('width', pct + '%');
+            $('#wpfg-db-scan-msg').text('Scanning ' + source + '...');
+
+            self.dbScanSource(sessionId, source, 0, sources, idx, totalFindings);
+        },
+
+        dbScanSource: function(sessionId, source, offset, sources, idx, totalFindings) {
+            var self = this;
+            self.ajax('wpfg_db_scan_batch', {
+                session_id: sessionId,
+                source: source,
+                offset: offset
+            }, function(resp) {
+                if (!resp.success) {
+                    $('#wpfg-db-scan-msg').text('Error: ' + (resp.data ? resp.data.message : wpfg.i18n.error));
+                    return;
+                }
+                var d = resp.data;
+                totalFindings += d.findings;
+
+                if (d.done) {
+                    // Move to next source.
+                    self.dbScanNext(sessionId, sources, idx + 1, totalFindings);
+                } else {
+                    // Continue same source with new offset.
+                    self.dbScanSource(sessionId, source, d.processed, sources, idx, totalFindings);
+                }
+            });
+        },
+
+        // --- File Monitor ---
+        bindMonitor: function() {
+            var self = this;
+
+            $('#wpfg-build-baseline').on('click', function() {
+                var btn = $(this);
+                btn.prop('disabled', true);
+                $('#wpfg-monitor-status').text('Building baseline...');
+
+                self.ajax('wpfg_build_baseline', {}, function(resp) {
+                    btn.prop('disabled', false);
+                    if (resp.success) {
+                        $('#wpfg-monitor-status').text('Baseline built: ' + resp.data.count + ' files indexed.');
+                        setTimeout(function() { location.reload(); }, 1500);
+                    } else {
+                        $('#wpfg-monitor-status').text(resp.data ? resp.data.message : wpfg.i18n.error);
+                    }
+                });
+            });
+
+            $('#wpfg-compare-files').on('click', function() {
+                var btn = $(this);
+                btn.prop('disabled', true);
+                $('#wpfg-monitor-status').text('Comparing...');
+
+                self.ajax('wpfg_compare_files', {}, function(resp) {
+                    btn.prop('disabled', false);
+                    $('#wpfg-monitor-status').text('');
+
+                    if (!resp.success) {
+                        $('#wpfg-monitor-status').text(resp.data ? resp.data.message : wpfg.i18n.error);
+                        return;
+                    }
+
+                    var d = resp.data;
+                    $('#wpfg-compare-results').show();
+                    $('#wpfg-mon-added').text(d.total_added);
+                    $('#wpfg-mon-modified').text(d.total_modified);
+                    $('#wpfg-mon-deleted').text(d.total_deleted);
+
+                    var html = '';
+                    if (d.added.length) {
+                        html += '<h4>Added Files (' + d.added.length + ')</h4><ul>';
+                        d.added.forEach(function(f) { html += '<li><code>' + f.path + '</code></li>'; });
+                        html += '</ul>';
+                    }
+                    if (d.modified.length) {
+                        html += '<h4>Modified Files (' + d.modified.length + ')</h4><ul>';
+                        d.modified.forEach(function(f) { html += '<li><code>' + f.path + '</code></li>'; });
+                        html += '</ul>';
+                    }
+                    if (d.deleted.length) {
+                        html += '<h4>Deleted Files (' + d.deleted.length + ')</h4><ul>';
+                        d.deleted.forEach(function(f) { html += '<li><code>' + f.path + '</code></li>'; });
+                        html += '</ul>';
+                    }
+                    if (!d.total_added && !d.total_modified && !d.total_deleted) {
+                        html = '<p>No changes detected since last baseline.</p>';
+                    }
+                    $('#wpfg-mon-details').html(html);
+                });
+            });
+
+            // View change history details.
+            $(document).on('click', '.wpfg-view-changes', function() {
+                var details = $(this).data('details');
+                if (typeof details === 'string') {
+                    try { details = JSON.parse(details); } catch(e) { details = {}; }
+                }
+                var html = '';
+                if (details.added && details.added.length) {
+                    html += '<h4>Added</h4><ul>';
+                    details.added.forEach(function(f) { html += '<li><code>' + f.path + '</code></li>'; });
+                    html += '</ul>';
+                }
+                if (details.modified && details.modified.length) {
+                    html += '<h4>Modified</h4><ul>';
+                    details.modified.forEach(function(f) { html += '<li><code>' + f.path + '</code></li>'; });
+                    html += '</ul>';
+                }
+                if (details.deleted && details.deleted.length) {
+                    html += '<h4>Deleted</h4><ul>';
+                    details.deleted.forEach(function(f) { html += '<li><code>' + f.path + '</code></li>'; });
+                    html += '</ul>';
+                }
+                self.showModal(html || '<p>No details available.</p>');
+            });
         }
     };
 

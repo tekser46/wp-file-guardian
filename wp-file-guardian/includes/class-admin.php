@@ -29,15 +29,18 @@ class WPFG_Admin {
         );
 
         $subpages = array(
-            'wpfg-dashboard' => __( 'Dashboard', 'wp-file-guardian' ),
-            'wpfg-scanner'   => __( 'Scanner', 'wp-file-guardian' ),
-            'wpfg-files'     => __( 'File Manager', 'wp-file-guardian' ),
-            'wpfg-quarantine'=> __( 'Quarantine', 'wp-file-guardian' ),
-            'wpfg-backups'   => __( 'Backups', 'wp-file-guardian' ),
-            'wpfg-repair'    => __( 'Repair', 'wp-file-guardian' ),
-            'wpfg-logs'      => __( 'Logs', 'wp-file-guardian' ),
-            'wpfg-settings'  => __( 'Settings', 'wp-file-guardian' ),
-            'wpfg-sysinfo'   => __( 'System Info', 'wp-file-guardian' ),
+            'wpfg-dashboard'    => __( 'Dashboard', 'wp-file-guardian' ),
+            'wpfg-scanner'      => __( 'File Scanner', 'wp-file-guardian' ),
+            'wpfg-db-scanner'   => __( 'DB Scanner', 'wp-file-guardian' ),
+            'wpfg-monitor'      => __( 'File Monitor', 'wp-file-guardian' ),
+            'wpfg-files'        => __( 'File Manager', 'wp-file-guardian' ),
+            'wpfg-quarantine'   => __( 'Quarantine', 'wp-file-guardian' ),
+            'wpfg-backups'      => __( 'Backups', 'wp-file-guardian' ),
+            'wpfg-repair'       => __( 'Repair', 'wp-file-guardian' ),
+            'wpfg-login-guard'  => __( 'Login Guard', 'wp-file-guardian' ),
+            'wpfg-logs'         => __( 'Logs', 'wp-file-guardian' ),
+            'wpfg-settings'     => __( 'Settings', 'wp-file-guardian' ),
+            'wpfg-sysinfo'      => __( 'System Info', 'wp-file-guardian' ),
         );
 
         foreach ( $subpages as $slug => $title ) {
@@ -70,6 +73,12 @@ class WPFG_Admin {
             array(),
             WPFG_VERSION
         );
+
+        // Chart.js from CDN for dashboard graphs.
+        $screen = get_current_screen();
+        if ( $screen && strpos( $screen->id, 'wpfg-dashboard' ) !== false ) {
+            wp_enqueue_script( 'chartjs', 'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js', array(), '4.4.7', true );
+        }
 
         wp_enqueue_script(
             'wpfg-admin',
@@ -105,7 +114,44 @@ class WPFG_Admin {
         $quarantine_count = WPFG_Quarantine::count();
         $backup_list = WPFG_Backup::get_list( array( 'per_page' => 1 ) );
         $latest_backup = ! empty( $backup_list['items'] ) ? $backup_list['items'][0] : null;
-        WPFG_Helpers::render_view( 'dashboard', compact( 'stats', 'quarantine_count', 'latest_backup' ) );
+        $risk = WPFG_Risk_Score::calculate();
+        $login_stats = WPFG_Login_Guard::get_stats();
+        $monitor_last = WPFG_File_Monitor::last_check();
+        $monitor_count = WPFG_File_Monitor::baseline_count();
+        $scan_history = self::get_scan_history_data();
+        WPFG_Helpers::render_view( 'dashboard', compact(
+            'stats', 'quarantine_count', 'latest_backup', 'risk',
+            'login_stats', 'monitor_last', 'monitor_count', 'scan_history'
+        ) );
+    }
+
+    /**
+     * Get scan history for Chart.js (last 30 days).
+     */
+    private static function get_scan_history_data() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wpfg_scan_history';
+
+        // Check table exists.
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table}'" ) !== $table ) {
+            return array( 'labels' => array(), 'critical' => array(), 'warning' => array(), 'info' => array(), 'score' => array() );
+        }
+
+        $rows = $wpdb->get_results(
+            "SELECT scan_date, critical_count, warning_count, info_count, risk_score
+             FROM {$table} ORDER BY scan_date DESC LIMIT 30"
+        );
+
+        $rows = array_reverse( $rows );
+        $data = array( 'labels' => array(), 'critical' => array(), 'warning' => array(), 'info' => array(), 'score' => array() );
+        foreach ( $rows as $r ) {
+            $data['labels'][]   = $r->scan_date;
+            $data['critical'][] = (int) $r->critical_count;
+            $data['warning'][]  = (int) $r->warning_count;
+            $data['info'][]     = (int) $r->info_count;
+            $data['score'][]    = (int) $r->risk_score;
+        }
+        return $data;
     }
 
     public static function page_scanner() {
@@ -195,5 +241,38 @@ class WPFG_Admin {
         if ( ! WPFG_Helpers::check_capability() ) wp_die( 'Unauthorized.' );
         $info = WPFG_System_Info::get_info();
         WPFG_Helpers::render_view( 'system-info', compact( 'info' ) );
+    }
+
+    // ---- v2 page renderers ----
+
+    public static function page_db_scanner() {
+        if ( ! WPFG_Helpers::check_capability() ) wp_die( 'Unauthorized.' );
+        $session_id = WPFG_DB_Scanner::get_latest_session();
+        $results    = $session_id ? WPFG_DB_Scanner::get_results( $session_id, array(
+            'severity' => isset( $_GET['severity'] ) ? sanitize_text_field( $_GET['severity'] ) : '',
+            'per_page' => 50,
+            'page'     => isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1,
+        ) ) : null;
+        WPFG_Helpers::render_view( 'db-scanner', compact( 'session_id', 'results' ) );
+    }
+
+    public static function page_monitor() {
+        if ( ! WPFG_Helpers::check_capability() ) wp_die( 'Unauthorized.' );
+        $baseline_count = WPFG_File_Monitor::baseline_count();
+        $last_check     = WPFG_File_Monitor::last_check();
+        $history        = WPFG_File_Monitor::get_change_history( 20 );
+        WPFG_Helpers::render_view( 'monitor', compact( 'baseline_count', 'last_check', 'history' ) );
+    }
+
+    public static function page_login_guard() {
+        if ( ! WPFG_Helpers::check_capability() ) wp_die( 'Unauthorized.' );
+        $stats = WPFG_Login_Guard::get_stats();
+        $log   = WPFG_Login_Guard::get_log( array(
+            'status'   => isset( $_GET['status'] ) ? sanitize_text_field( $_GET['status'] ) : '',
+            'search'   => isset( $_GET['s'] ) ? sanitize_text_field( $_GET['s'] ) : '',
+            'per_page' => 30,
+            'page'     => isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1,
+        ) );
+        WPFG_Helpers::render_view( 'login-guard', compact( 'stats', 'log' ) );
     }
 }

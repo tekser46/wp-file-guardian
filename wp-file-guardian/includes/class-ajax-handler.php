@@ -31,6 +31,13 @@ class WPFG_Ajax_Handler {
             'wpfg_clear_logs',
             'wpfg_export_settings',
             'wpfg_file_info',
+            // v2 actions.
+            'wpfg_db_scan_start',
+            'wpfg_db_scan_batch',
+            'wpfg_build_baseline',
+            'wpfg_compare_files',
+            'wpfg_test_remote',
+            'wpfg_upload_remote',
         );
 
         foreach ( $actions as $action ) {
@@ -383,5 +390,137 @@ class WPFG_Ajax_Handler {
     public static function wpfg_export_settings() {
         self::verify();
         wp_send_json_success( array( 'json' => WPFG_Settings::export() ) );
+    }
+
+    // ---- v2: DB Scanner ----
+
+    public static function wpfg_db_scan_start() {
+        self::verify();
+        // Get total counts for progress tracking.
+        global $wpdb;
+        $totals = array(
+            'posts'    => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts}" ),
+            'options'  => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->options}" ),
+            'comments' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->comments}" ),
+        );
+        // Create a new session ID.
+        $session_id = time();
+        // Clear old results for this session.
+        $wpdb->query( $wpdb->prepare(
+            "DELETE FROM {$wpdb->prefix}wpfg_db_scan_results WHERE session_id = %d",
+            $session_id
+        ) );
+        WPFG_Logger::log( 'db_scan_started', '', 'success' );
+        wp_send_json_success( array(
+            'session_id' => $session_id,
+            'totals'     => $totals,
+        ) );
+    }
+
+    public static function wpfg_db_scan_batch() {
+        self::verify();
+        $session_id = isset( $_POST['session_id'] ) ? absint( $_POST['session_id'] ) : 0;
+        $source     = isset( $_POST['source'] ) ? sanitize_text_field( $_POST['source'] ) : '';
+        $offset     = isset( $_POST['offset'] ) ? absint( $_POST['offset'] ) : 0;
+        $batch_size = 200;
+
+        if ( ! $session_id || ! $source ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid request.', 'wp-file-guardian' ) ) );
+        }
+
+        $result = array();
+        switch ( $source ) {
+            case 'posts':
+                $result = WPFG_DB_Scanner::scan_posts( $batch_size, $offset );
+                break;
+            case 'options':
+                $result = WPFG_DB_Scanner::scan_options( 500, $offset );
+                break;
+            case 'comments':
+                $result = WPFG_DB_Scanner::scan_comments( 500, $offset );
+                break;
+            case 'users':
+                $findings = WPFG_DB_Scanner::scan_users();
+                WPFG_DB_Scanner::save_results( $session_id, $findings );
+                wp_send_json_success( array(
+                    'findings'  => count( $findings ),
+                    'done'      => true,
+                    'source'    => 'users',
+                ) );
+                return;
+            case 'cron':
+                $findings = WPFG_DB_Scanner::scan_cron();
+                WPFG_DB_Scanner::save_results( $session_id, $findings );
+                wp_send_json_success( array(
+                    'findings'  => count( $findings ),
+                    'done'      => true,
+                    'source'    => 'cron',
+                ) );
+                return;
+        }
+
+        // Save findings.
+        if ( ! empty( $result['findings'] ) ) {
+            WPFG_DB_Scanner::save_results( $session_id, $result['findings'] );
+        }
+
+        wp_send_json_success( array(
+            'findings'  => count( $result['findings'] ),
+            'processed' => $result['processed'],
+            'total'     => $result['total'],
+            'done'      => $result['done'],
+            'source'    => $source,
+        ) );
+    }
+
+    // ---- v2: File Monitor ----
+
+    public static function wpfg_build_baseline() {
+        self::verify();
+        $count = WPFG_File_Monitor::build_baseline( true );
+        wp_send_json_success( array( 'count' => $count ) );
+    }
+
+    public static function wpfg_compare_files() {
+        self::verify();
+        $result = WPFG_File_Monitor::compare();
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+        }
+        wp_send_json_success( $result );
+    }
+
+    // ---- v2: Remote Backup ----
+
+    public static function wpfg_test_remote() {
+        self::verify();
+        $result = WPFG_Remote_Backup::test_connection();
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+        }
+        wp_send_json_success( array( 'message' => __( 'Connection successful!', 'wp-file-guardian' ) ) );
+    }
+
+    public static function wpfg_upload_remote() {
+        self::verify();
+        $backup_id = isset( $_POST['backup_id'] ) ? absint( $_POST['backup_id'] ) : 0;
+        if ( ! $backup_id ) {
+            wp_send_json_error( array( 'message' => __( 'No backup specified.', 'wp-file-guardian' ) ) );
+        }
+
+        global $wpdb;
+        $backup = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}wpfg_backups WHERE id = %d",
+            $backup_id
+        ) );
+        if ( ! $backup || ! file_exists( $backup->file_path ) ) {
+            wp_send_json_error( array( 'message' => __( 'Backup file not found.', 'wp-file-guardian' ) ) );
+        }
+
+        $result = WPFG_Remote_Backup::upload( $backup->file_path );
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+        }
+        wp_send_json_success( array( 'message' => __( 'Backup uploaded to remote storage.', 'wp-file-guardian' ) ) );
     }
 }

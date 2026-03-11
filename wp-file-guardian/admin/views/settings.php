@@ -128,6 +128,33 @@
             </table>
         </div>
 
+        <!-- Login Protection -->
+        <div class="wpfg-card">
+            <h2><?php esc_html_e( 'Login Protection', 'wp-file-guardian' ); ?></h2>
+            <table class="form-table">
+                <tr>
+                    <th><?php esc_html_e( 'Enable Login Guard', 'wp-file-guardian' ); ?></th>
+                    <td>
+                        <label><input type="checkbox" name="wpfg[login_protection]" value="1" <?php checked( $settings['login_protection'] ?? true ); ?> />
+                        <?php esc_html_e( 'Enable brute-force protection and login logging.', 'wp-file-guardian' ); ?></label>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="wpfg-max-attempts"><?php esc_html_e( 'Max Failed Attempts', 'wp-file-guardian' ); ?></label></th>
+                    <td>
+                        <input type="number" name="wpfg[login_max_attempts]" id="wpfg-max-attempts" value="<?php echo esc_attr( $settings['login_max_attempts'] ?? 5 ); ?>" min="1" max="50" />
+                        <p class="description"><?php esc_html_e( 'Lock out IP after this many failed attempts.', 'wp-file-guardian' ); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="wpfg-lockout-mins"><?php esc_html_e( 'Lockout Duration (minutes)', 'wp-file-guardian' ); ?></label></th>
+                    <td>
+                        <input type="number" name="wpfg[login_lockout_minutes]" id="wpfg-lockout-mins" value="<?php echo esc_attr( $settings['login_lockout_minutes'] ?? 30 ); ?>" min="1" max="1440" />
+                    </td>
+                </tr>
+            </table>
+        </div>
+
         <!-- Notifications -->
         <div class="wpfg-card">
             <h2><?php esc_html_e( 'Notifications', 'wp-file-guardian' ); ?></h2>
@@ -144,6 +171,98 @@
                     <td>
                         <input type="email" name="wpfg[notification_email]" id="wpfg-email" value="<?php echo esc_attr( $settings['notification_email'] ?? '' ); ?>" class="regular-text" />
                         <p class="description"><?php esc_html_e( 'Leave blank to use admin email.', 'wp-file-guardian' ); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="wpfg-slack-url"><?php esc_html_e( 'Slack Webhook URL', 'wp-file-guardian' ); ?></label></th>
+                    <td>
+                        <input type="url" name="wpfg[slack_webhook_url]" id="wpfg-slack-url" value="<?php echo esc_attr( $settings['slack_webhook_url'] ?? '' ); ?>" class="large-text" />
+                        <p class="description"><?php esc_html_e( 'Leave blank to disable Slack notifications.', 'wp-file-guardian' ); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="wpfg-tg-token"><?php esc_html_e( 'Telegram Bot Token', 'wp-file-guardian' ); ?></label></th>
+                    <td>
+                        <input type="text" name="wpfg[telegram_bot_token]" id="wpfg-tg-token" value="<?php echo esc_attr( $settings['telegram_bot_token'] ?? '' ); ?>" class="regular-text" />
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="wpfg-tg-chat"><?php esc_html_e( 'Telegram Chat ID', 'wp-file-guardian' ); ?></label></th>
+                    <td>
+                        <input type="text" name="wpfg[telegram_chat_id]" id="wpfg-tg-chat" value="<?php echo esc_attr( $settings['telegram_chat_id'] ?? '' ); ?>" class="regular-text" />
+                        <p class="description"><?php esc_html_e( 'Both token and chat ID are needed for Telegram alerts.', 'wp-file-guardian' ); ?></p>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Remote Backup -->
+        <div class="wpfg-card">
+            <h2><?php esc_html_e( 'Remote Backup', 'wp-file-guardian' ); ?></h2>
+            <table class="form-table">
+                <tr>
+                    <th><label for="wpfg-remote-type"><?php esc_html_e( 'Remote Storage', 'wp-file-guardian' ); ?></label></th>
+                    <td>
+                        <select name="wpfg[remote_backup_type]" id="wpfg-remote-type">
+                            <option value="none" <?php selected( $settings['remote_backup_type'] ?? 'none', 'none' ); ?>><?php esc_html_e( 'None (local only)', 'wp-file-guardian' ); ?></option>
+                            <option value="ftp" <?php selected( $settings['remote_backup_type'] ?? '', 'ftp' ); ?>><?php esc_html_e( 'FTP / FTPS', 'wp-file-guardian' ); ?></option>
+                            <option value="s3" <?php selected( $settings['remote_backup_type'] ?? '', 's3' ); ?>><?php esc_html_e( 'Amazon S3', 'wp-file-guardian' ); ?></option>
+                            <option value="custom" <?php selected( $settings['remote_backup_type'] ?? '', 'custom' ); ?>><?php esc_html_e( 'Custom Directory', 'wp-file-guardian' ); ?></option>
+                        </select>
+                    </td>
+                </tr>
+                <!-- FTP Settings -->
+                <tr class="wpfg-remote-ftp">
+                    <th><label><?php esc_html_e( 'FTP Host', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="text" name="wpfg[ftp_host]" value="<?php echo esc_attr( $settings['ftp_host'] ?? '' ); ?>" class="regular-text" /></td>
+                </tr>
+                <tr class="wpfg-remote-ftp">
+                    <th><label><?php esc_html_e( 'FTP User', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="text" name="wpfg[ftp_user]" value="<?php echo esc_attr( $settings['ftp_user'] ?? '' ); ?>" class="regular-text" /></td>
+                </tr>
+                <tr class="wpfg-remote-ftp">
+                    <th><label><?php esc_html_e( 'FTP Password', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="password" name="wpfg[ftp_pass]" value="<?php echo esc_attr( $settings['ftp_pass'] ?? '' ); ?>" class="regular-text" /></td>
+                </tr>
+                <tr class="wpfg-remote-ftp">
+                    <th><label><?php esc_html_e( 'FTP Port', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="number" name="wpfg[ftp_port]" value="<?php echo esc_attr( $settings['ftp_port'] ?? 21 ); ?>" min="1" max="65535" /></td>
+                </tr>
+                <tr class="wpfg-remote-ftp">
+                    <th><label><?php esc_html_e( 'FTP Directory', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="text" name="wpfg[ftp_dir]" value="<?php echo esc_attr( $settings['ftp_dir'] ?? '/' ); ?>" class="regular-text" /></td>
+                </tr>
+                <tr class="wpfg-remote-ftp">
+                    <th><?php esc_html_e( 'Use FTPS (SSL)', 'wp-file-guardian' ); ?></th>
+                    <td><label><input type="checkbox" name="wpfg[ftp_ssl]" value="1" <?php checked( $settings['ftp_ssl'] ?? false ); ?> /> <?php esc_html_e( 'Enable SSL encryption', 'wp-file-guardian' ); ?></label></td>
+                </tr>
+                <!-- S3 Settings -->
+                <tr class="wpfg-remote-s3">
+                    <th><label><?php esc_html_e( 'S3 Access Key', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="text" name="wpfg[s3_access_key]" value="<?php echo esc_attr( $settings['s3_access_key'] ?? '' ); ?>" class="regular-text" /></td>
+                </tr>
+                <tr class="wpfg-remote-s3">
+                    <th><label><?php esc_html_e( 'S3 Secret Key', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="password" name="wpfg[s3_secret_key]" value="<?php echo esc_attr( $settings['s3_secret_key'] ?? '' ); ?>" class="regular-text" /></td>
+                </tr>
+                <tr class="wpfg-remote-s3">
+                    <th><label><?php esc_html_e( 'S3 Bucket', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="text" name="wpfg[s3_bucket]" value="<?php echo esc_attr( $settings['s3_bucket'] ?? '' ); ?>" class="regular-text" /></td>
+                </tr>
+                <tr class="wpfg-remote-s3">
+                    <th><label><?php esc_html_e( 'S3 Region', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="text" name="wpfg[s3_region]" value="<?php echo esc_attr( $settings['s3_region'] ?? 'eu-central-1' ); ?>" class="regular-text" /></td>
+                </tr>
+                <tr class="wpfg-remote-s3">
+                    <th><label><?php esc_html_e( 'S3 Prefix', 'wp-file-guardian' ); ?></label></th>
+                    <td><input type="text" name="wpfg[s3_prefix]" value="<?php echo esc_attr( $settings['s3_prefix'] ?? 'wpfg-backups/' ); ?>" class="regular-text" /></td>
+                </tr>
+                <!-- Custom Directory -->
+                <tr class="wpfg-remote-custom">
+                    <th><label><?php esc_html_e( 'Custom Directory Path', 'wp-file-guardian' ); ?></label></th>
+                    <td>
+                        <input type="text" name="wpfg[remote_custom_dir]" value="<?php echo esc_attr( $settings['remote_custom_dir'] ?? '' ); ?>" class="large-text" />
+                        <p class="description"><?php esc_html_e( 'Absolute server path for backup copies.', 'wp-file-guardian' ); ?></p>
                     </td>
                 </tr>
             </table>

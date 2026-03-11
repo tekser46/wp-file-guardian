@@ -116,6 +116,62 @@ class WPFG_Activator {
             KEY created_at (created_at)
         ) {$charset};";
 
+        // v2: DB scan results.
+        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}wpfg_db_scan_results (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            session_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            source VARCHAR(50) NOT NULL,
+            row_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            severity VARCHAR(20) NOT NULL DEFAULT 'info',
+            description TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY session_id (session_id),
+            KEY severity (severity)
+        ) {$charset};";
+
+        // v2: File change monitor history.
+        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}wpfg_file_changes (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            added_count INT UNSIGNED NOT NULL DEFAULT 0,
+            modified_count INT UNSIGNED NOT NULL DEFAULT 0,
+            deleted_count INT UNSIGNED NOT NULL DEFAULT 0,
+            details LONGTEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY created_at (created_at)
+        ) {$charset};";
+
+        // v2: Login log.
+        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}wpfg_login_log (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            username VARCHAR(100) NOT NULL,
+            user_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            ip_address VARCHAR(45) NOT NULL DEFAULT '',
+            user_agent VARCHAR(255) DEFAULT '',
+            status VARCHAR(20) NOT NULL DEFAULT 'failed',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY username (username),
+            KEY ip_address (ip_address),
+            KEY status (status),
+            KEY created_at (created_at)
+        ) {$charset};";
+
+        // v2: Scan history for charts.
+        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}wpfg_scan_history (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            scan_date DATE NOT NULL,
+            total_files INT UNSIGNED NOT NULL DEFAULT 0,
+            critical_count INT UNSIGNED NOT NULL DEFAULT 0,
+            warning_count INT UNSIGNED NOT NULL DEFAULT 0,
+            info_count INT UNSIGNED NOT NULL DEFAULT 0,
+            risk_score INT UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY scan_date (scan_date)
+        ) {$charset};";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         foreach ( $sql as $query ) {
             dbDelta( $query );

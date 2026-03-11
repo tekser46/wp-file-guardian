@@ -84,6 +84,45 @@ class WPFG_Cron {
         if ( $stats['critical_count'] > 0 ) {
             WPFG_Notifications::notify_critical_findings( $session_id, $stats['critical_count'] );
         }
+
+        // Save scan history for Chart.js dashboard graphs.
+        self::save_scan_history( $stats );
+    }
+
+    /**
+     * Save scan history record for trend tracking.
+     */
+    private static function save_scan_history( $stats ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wpfg_scan_history';
+
+        // Check table exists.
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table}'" ) !== $table ) {
+            return;
+        }
+
+        $today = current_time( 'Y-m-d' );
+        $risk  = WPFG_Risk_Score::calculate();
+
+        // Upsert: update if today's record exists, otherwise insert.
+        $existing = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$table} WHERE scan_date = %s", $today
+        ) );
+
+        $data = array(
+            'scan_date'      => $today,
+            'critical_count' => $stats['critical_count'],
+            'warning_count'  => $stats['warning_count'],
+            'info_count'     => $stats['info_count'],
+            'total_files'    => $stats['total_files'],
+            'risk_score'     => $risk['score'],
+        );
+
+        if ( $existing ) {
+            $wpdb->update( $table, $data, array( 'id' => $existing ) );
+        } else {
+            $wpdb->insert( $table, $data );
+        }
     }
 
     /**

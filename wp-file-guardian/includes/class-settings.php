@@ -28,6 +28,26 @@ class WPFG_Settings {
             'max_file_size_scan'     => 10485760, // 10 MB
             'batch_size'             => 500,
             'large_file_threshold'   => 5242880, // 5 MB
+            // v2 settings.
+            'login_protection'       => true,
+            'login_max_attempts'     => 5,
+            'login_lockout_minutes'  => 30,
+            'remote_backup_type'     => 'none', // none, ftp, s3, gdrive, custom
+            'ftp_host'               => '',
+            'ftp_user'               => '',
+            'ftp_pass'               => '',
+            'ftp_port'               => 21,
+            'ftp_dir'                => '/',
+            'ftp_ssl'                => false,
+            's3_access_key'          => '',
+            's3_secret_key'          => '',
+            's3_bucket'              => '',
+            's3_region'              => 'eu-central-1',
+            's3_prefix'              => 'wpfg-backups/',
+            'remote_custom_dir'      => '',
+            'slack_webhook_url'      => '',
+            'telegram_bot_token'     => '',
+            'telegram_chat_id'       => '',
         );
     }
 
@@ -103,6 +123,8 @@ class WPFG_Settings {
             case 'backup_before_action':
             case 'email_notifications':
             case 'debug_mode':
+            case 'login_protection':
+            case 'ftp_ssl':
                 return (bool) $value;
 
             case 'scheduled_scan':
@@ -123,7 +145,33 @@ class WPFG_Settings {
             case 'max_file_size_scan':
             case 'batch_size':
             case 'large_file_threshold':
+            case 'login_max_attempts':
+            case 'login_lockout_minutes':
+            case 'ftp_port':
                 return absint( $value );
+
+            case 'remote_backup_type':
+                return in_array( $value, array( 'none', 'ftp', 's3', 'gdrive', 'custom' ), true ) ? $value : 'none';
+
+            case 'slack_webhook_url':
+                return esc_url_raw( $value );
+
+            case 'ftp_host':
+            case 'ftp_user':
+            case 'ftp_dir':
+            case 's3_access_key':
+            case 's3_bucket':
+            case 's3_region':
+            case 's3_prefix':
+            case 'remote_custom_dir':
+            case 'telegram_bot_token':
+            case 'telegram_chat_id':
+                return sanitize_text_field( $value );
+
+            case 'ftp_pass':
+            case 's3_secret_key':
+                // Don't sanitize passwords too aggressively.
+                return wp_unslash( $value );
 
             default:
                 return sanitize_text_field( $value );
