@@ -202,16 +202,26 @@ class WPFG_Scanner {
                 $norm_path = wp_normalize_path( $file_path );
                 $in_plugins = strpos( $norm_path, wp_normalize_path( WP_PLUGIN_DIR . '/' ) ) === 0;
                 $in_themes  = strpos( $norm_path, wp_normalize_path( get_theme_root() . '/' ) ) === 0;
-                $in_known_uploads = false;
-                $uploads_base = wp_normalize_path( wp_upload_dir()['basedir'] );
-                $known_archive_dirs = array( '/template-kits/', '/starter-templates/', '/elementor/', '/woocommerce_uploads/' );
+                $in_known_dir = false;
+                $uploads_base   = wp_normalize_path( wp_upload_dir()['basedir'] );
+                $content_base   = wp_normalize_path( WP_CONTENT_DIR );
+                // Directories where archives are expected (in uploads or wp-content).
+                $known_archive_dirs = array(
+                    '/template-kits/', '/starter-templates/', '/elementor/', '/woocommerce_uploads/',
+                    // Backup plugin directories — archives here are expected.
+                    '/updraft/', '/updraftplus/', '/backwpup/', '/ai1wm-backups/',
+                    '/backups-dup-lite/', '/backups-dup-pro/', '/duplicator/',
+                    '/wpvivid/', '/mainwp/', '/wpfg/',
+                );
                 foreach ( $known_archive_dirs as $kd ) {
-                    if ( strpos( $norm_path, $uploads_base . $kd ) === 0 ) {
-                        $in_known_uploads = true;
+                    // Check both wp-content/uploads/{dir} and wp-content/{dir}.
+                    if ( strpos( $norm_path, $uploads_base . $kd ) === 0 ||
+                         strpos( $norm_path, $content_base . $kd ) === 0 ) {
+                        $in_known_dir = true;
                         break;
                     }
                 }
-                if ( ! $in_plugins && ! $in_themes && ! $in_known_uploads ) {
+                if ( ! $in_plugins && ! $in_themes && ! $in_known_dir ) {
                     $findings[] = array( 'type' => 'archive_file', 'severity' => 'warning', 'desc' => __( 'Archive or database dump found.', 'wp-file-guardian' ) );
                 }
             }
