@@ -1,0 +1,424 @@
+<?php
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+/**
+ * File scanning engine.
+ * Supports chunked / resumable scanning for large sites.
+ */
+class WPFG_Scanner {
+
+    /**
+     * Create a new scan session.
+     *
+     * @param string $scan_type 'full', 'quick', 'custom'
+     * @param array  $options   Optional overrides.
+     * @return int Session ID.
+     */
+    public static function create_session( $scan_type = 'full', $options = array() ) {
+        global $wpdb;
+        $wpdb->insert(
+            $wpdb->prefix . 'wpfg_scan_sessions',
+            array(
+                'user_id'    => get_current_user_id(),
+                'status'     => 'pending',
+                'scan_type'  => sanitize_text_field( $scan_type ),
+                'options'    => wp_json_encode( $options ),
+                'created_at' => current_time( 'mysql' ),
+            ),
+            array( '%d', '%s', '%s', '%s', '%s' )
+        );
+        return $wpdb->insert_id;
+    }
+
+    /**
+     * Get a scan session by ID.
+     */
+    public static function get_session( $session_id ) {
+        global $wpdb;
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}wpfg_scan_sessions WHERE id = %d",
+            $session_id
+        ) );
+    }
+
+    /**
+     * Get the latest scan session.
+     */
+    public static function get_latest_session() {
+        global $wpdb;
+        return $wpdb->get_row(
+            "SELECT * FROM {$wpdb->prefix}wpfg_scan_sessions ORDER BY id DESC LIMIT 1"
+        );
+    }
+
+    /**
+     * Update session status.
+     */
+    public static function update_session( $session_id, $data ) {
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->prefix . 'wpfg_scan_sessions',
+            $data,
+            array( 'id' => $session_id ),
+            null,
+            array( '%d' )
+        );
+    }
+
+    /**
+     * Collect all files to be scanned and store count.
+     * Returns array of file paths.
+     */
+    public static function collect_files( $session_id ) {
+        $settings  = get_option( 'wpfg_settings', WPFG_Settings::defaults() );
+        $session   = self::get_session( $session_id );
+        $sess_opts = $session && $session->options ? json_decode( $session->options, true ) : array();
+
+        $scan_paths = ! empty( $sess_opts['scan_paths'] ) ? $sess_opts['scan_paths'] : $settings['scan_paths'];
+        $excluded   = ! empty( $sess_opts['excluded_paths'] ) ? $sess_opts['excluded_paths'] : $settings['excluded_paths'];
+        $skip_ext   = ! empty( $sess_opts['excluded_extensions'] ) ? $sess_opts['excluded_extensions'] : $settings['excluded_extensions'];
+
+        $files = array();
+        foreach ( (array) $scan_paths as $rel_path ) {
+            $abs_path = ABSPATH . ltrim( $rel_path, '/' );
+            if ( ! is_dir( $abs_path ) ) {
+                if ( is_file( $abs_path ) ) {
+                    $files[] = wp_normalize_path( $abs_path );
+                }
+                continue;
+            }
+            foreach ( WPFG_Filesystem::scan_directory( $abs_path, $excluded, $skip_ext ) as $file ) {
+                $files[] = wp_normalize_path( $file );
+            }
+        }
+
+        // Update session with total count.
+        self::update_session( $session_id, array(
+            'total_files' => count( $files ),
+            'status'      => 'collecting',
+            'started_at'  => current_time( 'mysql' ),
+        ) );
+
+        // Store file list in a transient for batch processing.
+        set_transient( 'wpfg_scan_files_' . $session_id, $files, HOUR_IN_SECONDS );
+
+        return $files;
+    }
+
+    /**
+     * Process a batch of files for a given session.
+     *
+     * @param int $session_id
+     * @param int $offset     Starting index.
+     * @param int $batch_size Number of files per batch.
+     * @return array { processed: int, total: int, done: bool }
+     */
+    public static function process_batch( $session_id, $offset = 0, $batch_size = 0 ) {
+        if ( ! $batch_size ) {
+            $batch_size = (int) WPFG_Settings::get( 'batch_size', 500 );
+        }
+
+        $files = get_transient( 'wpfg_scan_files_' . $session_id );
+        if ( ! is_array( $files ) ) {
+            return array( 'processed' => 0, 'total' => 0, 'done' => true, 'error' => 'no_files' );
+        }
+
+        $total       = count( $files );
+        $batch       = array_slice( $files, $offset, $batch_size );
+        $settings    = get_option( 'wpfg_settings', WPFG_Settings::defaults() );
+        $sensitivity = ! empty( $settings['scan_sensitivity'] ) ? $settings['scan_sensitivity'] : 'medium';
+        $max_size    = ! empty( $settings['max_file_size_scan'] ) ? (int) $settings['max_file_size_scan'] : 10485760;
+        $large_threshold = ! empty( $settings['large_file_threshold'] ) ? (int) $settings['large_file_threshold'] : 5242880;
+        $issues      = 0;
+        $scanned_size = 0;
+
+        self::update_session( $session_id, array( 'status' => 'scanning' ) );
+
+        foreach ( $batch as $file_path ) {
+            if ( ! file_exists( $file_path ) ) {
+                continue;
+            }
+
+            $info   = WPFG_Filesystem::file_info( $file_path );
+            $size   = $info['size'];
+            $scanned_size += $size;
+            $findings = array();
+
+            // Check for hidden files.
+            $basename = basename( $file_path );
+            if ( strpos( $basename, '.' ) === 0 && '.htaccess' !== $basename ) {
+                $findings[] = array( 'type' => 'hidden_file', 'severity' => 'info', 'desc' => __( 'Hidden file detected.', 'wp-file-guardian' ) );
+            }
+
+            // Check for unusually large files.
+            if ( $size > $large_threshold ) {
+                $findings[] = array( 'type' => 'large_file', 'severity' => 'info', 'desc' => sprintf( __( 'Large file: %s', 'wp-file-guardian' ), WPFG_Helpers::format_bytes( $size ) ) );
+            }
+
+            // Writable sensitive files.
+            if ( in_array( $basename, WPFG_Helpers::sensitive_files(), true ) && $info['is_writable'] ) {
+                $findings[] = array( 'type' => 'writable_sensitive', 'severity' => 'warning', 'desc' => __( 'Sensitive file is writable.', 'wp-file-guardian' ) );
+            }
+
+            // Recently modified (last 24h).
+            if ( $info['modified'] > ( time() - DAY_IN_SECONDS ) ) {
+                $findings[] = array( 'type' => 'recently_modified', 'severity' => 'info', 'desc' => __( 'File modified in the last 24 hours.', 'wp-file-guardian' ) );
+            }
+
+            // Duplicate backup / archive / temp files.
+            $ext = $info['extension'];
+            if ( in_array( $ext, array( 'bak', 'old', 'orig', 'tmp', 'temp', 'swp', 'log' ), true ) ) {
+                $findings[] = array( 'type' => 'temp_file', 'severity' => 'info', 'desc' => __( 'Temporary or backup file.', 'wp-file-guardian' ) );
+            }
+            if ( in_array( $ext, array( 'zip', 'tar', 'gz', 'sql' ), true ) ) {
+                $findings[] = array( 'type' => 'archive_file', 'severity' => 'warning', 'desc' => __( 'Archive or database dump found.', 'wp-file-guardian' ) );
+            }
+
+            // PHP files: scan for malware patterns.
+            if ( WPFG_Helpers::is_php_file( $file_path ) && $size <= $max_size ) {
+                $content = file_get_contents( $file_path );
+                if ( false !== $content ) {
+                    $mal_findings = WPFG_Malware_Patterns::scan_content( $content, $sensitivity );
+                    foreach ( $mal_findings as $mf ) {
+                        $findings[] = array(
+                            'type'     => 'malware_pattern',
+                            'severity' => $mf['severity'],
+                            'desc'     => $mf['label'],
+                        );
+                    }
+                }
+            }
+
+            // Suspicious uploads (PHP in uploads directory).
+            $uploads_dir = wp_normalize_path( wp_upload_dir()['basedir'] );
+            if ( WPFG_Helpers::is_php_file( $file_path ) && strpos( wp_normalize_path( $file_path ), $uploads_dir ) === 0 ) {
+                $findings[] = array( 'type' => 'suspicious_upload', 'severity' => 'critical', 'desc' => __( 'PHP file in uploads directory.', 'wp-file-guardian' ) );
+            }
+
+            // Store findings.
+            if ( ! empty( $findings ) ) {
+                // Use the highest severity found.
+                $max_severity = 'info';
+                $descs        = array();
+                foreach ( $findings as $f ) {
+                    $descs[] = $f['desc'];
+                    if ( 'critical' === $f['severity'] ) {
+                        $max_severity = 'critical';
+                    } elseif ( 'warning' === $f['severity'] && 'critical' !== $max_severity ) {
+                        $max_severity = 'warning';
+                    }
+                }
+                self::save_result( $session_id, $file_path, $info, $max_severity, $findings[0]['type'], implode( '; ', $descs ) );
+                $issues++;
+            }
+        }
+
+        $processed = $offset + count( $batch );
+        $done      = $processed >= $total;
+
+        // Update session progress.
+        $update = array(
+            'scanned_files' => $processed,
+            'issues_found'  => self::count_session_issues( $session_id ),
+        );
+
+        if ( $done ) {
+            $update['status']       = 'completed';
+            $update['completed_at'] = current_time( 'mysql' );
+            $update['total_size']   = self::get_session_total_size( $session_id );
+            delete_transient( 'wpfg_scan_files_' . $session_id );
+            WPFG_Logger::log( 'scan_completed', '', 'success', sprintf( 'Session %d: %d files scanned, %d issues.', $session_id, $total, $update['issues_found'] ) );
+        }
+
+        self::update_session( $session_id, $update );
+
+        return array(
+            'processed' => $processed,
+            'total'     => $total,
+            'done'      => $done,
+            'issues'    => $issues,
+        );
+    }
+
+    /**
+     * Save a scan result to the database.
+     */
+    private static function save_result( $session_id, $file_path, $info, $severity, $issue_type, $description ) {
+        global $wpdb;
+        $wpdb->insert(
+            $wpdb->prefix . 'wpfg_scan_results',
+            array(
+                'session_id'       => $session_id,
+                'file_path'        => wp_normalize_path( $file_path ),
+                'file_size'        => $info['size'],
+                'file_modified'    => gmdate( 'Y-m-d H:i:s', $info['modified'] ),
+                'file_permissions' => $info['permissions'],
+                'file_hash'        => $info['hash'],
+                'file_type'        => $info['extension'],
+                'severity'         => $severity,
+                'issue_type'       => $issue_type,
+                'description'      => $description,
+                'created_at'       => current_time( 'mysql' ),
+            ),
+            array( '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+        );
+    }
+
+    /**
+     * Count issues for a session.
+     */
+    private static function count_session_issues( $session_id ) {
+        global $wpdb;
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}wpfg_scan_results WHERE session_id = %d",
+            $session_id
+        ) );
+    }
+
+    /**
+     * Get total scanned size from results.
+     */
+    private static function get_session_total_size( $session_id ) {
+        global $wpdb;
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT SUM(file_size) FROM {$wpdb->prefix}wpfg_scan_results WHERE session_id = %d",
+            $session_id
+        ) );
+    }
+
+    /**
+     * Get scan results for a session with filters.
+     */
+    public static function get_results( $session_id, $args = array() ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wpfg_scan_results';
+
+        $defaults = array(
+            'severity'  => '',
+            'issue_type'=> '',
+            'search'    => '',
+            'ignored'   => '',
+            'per_page'  => 20,
+            'page'      => 1,
+            'orderby'   => 'severity',
+            'order'     => 'DESC',
+        );
+        $args = wp_parse_args( $args, $defaults );
+
+        $where  = array( 'session_id = %d' );
+        $values = array( $session_id );
+
+        if ( $args['severity'] ) {
+            $where[]  = 'severity = %s';
+            $values[] = $args['severity'];
+        }
+        if ( $args['issue_type'] ) {
+            $where[]  = 'issue_type = %s';
+            $values[] = $args['issue_type'];
+        }
+        if ( '' !== $args['ignored'] ) {
+            $where[]  = 'is_ignored = %d';
+            $values[] = (int) $args['ignored'];
+        }
+        if ( $args['search'] ) {
+            $like     = '%' . $wpdb->esc_like( $args['search'] ) . '%';
+            $where[]  = '(file_path LIKE %s OR description LIKE %s)';
+            $values[] = $like;
+            $values[] = $like;
+        }
+
+        $where_sql = implode( ' AND ', $where );
+
+        $allowed_order = array( 'id', 'file_path', 'file_size', 'severity', 'issue_type', 'file_modified', 'created_at' );
+        $orderby = in_array( $args['orderby'], $allowed_order, true ) ? $args['orderby'] : 'severity';
+
+        // Custom severity ordering.
+        if ( 'severity' === $orderby ) {
+            $orderby = "FIELD(severity, 'critical', 'warning', 'info')";
+            $order   = 'ASC'; // critical first.
+        } else {
+            $order = 'ASC' === strtoupper( $args['order'] ) ? 'ASC' : 'DESC';
+        }
+
+        $offset = max( 0, ( absint( $args['page'] ) - 1 ) * absint( $args['per_page'] ) );
+        $limit  = absint( $args['per_page'] );
+
+        $total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE {$where_sql}", $values ) );
+        $items = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$table} WHERE {$where_sql} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d",
+            array_merge( $values, array( $limit, $offset ) )
+        ) );
+
+        return array( 'total' => $total, 'items' => $items );
+    }
+
+    /**
+     * Mark a result as ignored/trusted.
+     */
+    public static function ignore_result( $result_id, $ignore = true ) {
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->prefix . 'wpfg_scan_results',
+            array( 'is_ignored' => $ignore ? 1 : 0 ),
+            array( 'id' => $result_id ),
+            array( '%d' ),
+            array( '%d' )
+        );
+    }
+
+    /**
+     * Get dashboard statistics from the latest scan.
+     */
+    public static function get_dashboard_stats() {
+        $session = self::get_latest_session();
+        if ( ! $session ) {
+            return array(
+                'total_files'     => 0,
+                'total_size'      => 0,
+                'issues_found'    => 0,
+                'critical_count'  => 0,
+                'warning_count'   => 0,
+                'info_count'      => 0,
+                'last_scan'       => null,
+                'scan_status'     => 'never',
+            );
+        }
+
+        global $wpdb;
+        $session_id = $session->id;
+        $prefix     = $wpdb->prefix;
+
+        $critical = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}wpfg_scan_results WHERE session_id = %d AND severity = 'critical' AND is_ignored = 0",
+            $session_id
+        ) );
+        $warning = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}wpfg_scan_results WHERE session_id = %d AND severity = 'warning' AND is_ignored = 0",
+            $session_id
+        ) );
+        $info = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$prefix}wpfg_scan_results WHERE session_id = %d AND severity = 'info' AND is_ignored = 0",
+            $session_id
+        ) );
+
+        return array(
+            'total_files'    => (int) $session->total_files,
+            'total_size'     => (int) $session->total_size,
+            'issues_found'   => (int) $session->issues_found,
+            'critical_count' => $critical,
+            'warning_count'  => $warning,
+            'info_count'     => $info,
+            'last_scan'      => $session->completed_at ?? $session->started_at,
+            'scan_status'    => $session->status,
+            'session_id'     => $session_id,
+        );
+    }
+
+    /**
+     * Cancel a running scan.
+     */
+    public static function cancel_session( $session_id ) {
+        self::update_session( $session_id, array( 'status' => 'cancelled' ) );
+        delete_transient( 'wpfg_scan_files_' . $session_id );
+    }
+}
