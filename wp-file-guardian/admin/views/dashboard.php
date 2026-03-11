@@ -120,10 +120,10 @@
         </div>
 
         <!-- Scan History Chart -->
-        <div class="wpfg-card wpfg-card-wide">
+        <div class="wpfg-card">
             <h2><?php esc_html_e( 'Scan History (Last 30 Days)', 'wp-file-guardian' ); ?></h2>
             <?php if ( ! empty( $scan_history['labels'] ) ) : ?>
-            <div style="position:relative; height:180px;">
+            <div style="position:relative; height:120px; overflow:hidden;">
                 <canvas id="wpfg-scan-chart"></canvas>
             </div>
             <script>
@@ -131,56 +131,51 @@
                     if (typeof Chart === 'undefined') return;
                     var ctx = document.getElementById('wpfg-scan-chart');
                     if (!ctx) return;
-                    new Chart(ctx.getContext('2d'), {
-                        type: 'line',
+                    /* Prevent Chart.js from scrolling to canvas during render */
+                    var savedScrollY = window.scrollY || window.pageYOffset;
+                    var chart = new Chart(ctx.getContext('2d'), {
+                        type: 'bar',
                         data: {
                             labels: <?php echo wp_json_encode( $scan_history['labels'] ); ?>,
                             datasets: [
                                 {
                                     label: '<?php echo esc_js( __( 'Critical', 'wp-file-guardian' ) ); ?>',
                                     data: <?php echo wp_json_encode( $scan_history['critical'] ); ?>,
-                                    borderColor: '#d63638',
-                                    backgroundColor: 'rgba(214,54,56,0.08)',
-                                    borderWidth: 2,
-                                    pointRadius: 2,
-                                    tension: 0.3,
-                                    fill: true
+                                    backgroundColor: '#d63638',
+                                    barPercentage: 0.6
                                 },
                                 {
                                     label: '<?php echo esc_js( __( 'Warning', 'wp-file-guardian' ) ); ?>',
                                     data: <?php echo wp_json_encode( $scan_history['warning'] ); ?>,
-                                    borderColor: '#dba617',
-                                    backgroundColor: 'rgba(219,166,23,0.08)',
-                                    borderWidth: 2,
-                                    pointRadius: 2,
-                                    tension: 0.3,
-                                    fill: true
+                                    backgroundColor: '#dba617',
+                                    barPercentage: 0.6
                                 },
                                 {
                                     label: '<?php echo esc_js( __( 'Info', 'wp-file-guardian' ) ); ?>',
                                     data: <?php echo wp_json_encode( $scan_history['info'] ); ?>,
-                                    borderColor: '#2271b1',
-                                    backgroundColor: 'rgba(34,113,177,0.08)',
-                                    borderWidth: 2,
-                                    pointRadius: 2,
-                                    tension: 0.3,
-                                    fill: true
+                                    backgroundColor: '#2271b1',
+                                    barPercentage: 0.6
                                 }
                             ]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            animation: { duration: 400 },
+                            animation: {
+                                duration: 300,
+                                onComplete: function() { window.scrollTo(0, savedScrollY); }
+                            },
                             plugins: {
-                                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 11 } } }
+                                legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } }
                             },
                             scales: {
-                                y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } },
-                                x: { ticks: { font: { size: 10 }, maxRotation: 45 } }
+                                y: { beginAtZero: true, stacked: true, ticks: { precision: 0, font: { size: 9 } }, grid: { display: false } },
+                                x: { stacked: true, ticks: { font: { size: 9 }, maxRotation: 0 }, grid: { display: false } }
                             }
                         }
                     });
+                    /* Restore scroll position after chart renders */
+                    requestAnimationFrame(function() { window.scrollTo(0, savedScrollY); });
                 });
             </script>
             <?php else : ?>
