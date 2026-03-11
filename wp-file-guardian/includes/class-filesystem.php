@@ -200,23 +200,56 @@ class WPFG_Filesystem {
             if ( ! is_file( $file ) || ! is_readable( $file ) ) {
                 continue;
             }
-            $local = $file;
-            if ( $base && strpos( wp_normalize_path( $file ), $base ) === 0 ) {
-                $local = substr( wp_normalize_path( $file ), strlen( $base ) );
+
+            // Skip very large files (>256 MB) to prevent memory issues.
+            $fsize = @filesize( $file );
+            if ( false !== $fsize && $fsize > 268435456 ) {
+                continue;
             }
-            $zip->addFile( $file, $local );
+
+            $local = $file;
+            if ( $base ) {
+                $norm = wp_normalize_path( $file );
+                if ( strpos( $norm, $base ) === 0 ) {
+                    $local = substr( $norm, strlen( $base ) );
+                }
+            }
+
+            @$zip->addFile( $file, $local );
             $count++;
 
-            // Close and reopen every 500 files to flush memory and prevent
-            // ZipArchive from holding too many file handles open at once.
+            // Flush every 500 files: close and reopen to free file handles.
+            // Wrap in try/catch to handle ZipArchive errors gracefully.
             if ( $count % 500 === 0 ) {
-                $zip->close();
+                try {
+                    @$zip->close();
+                } catch ( \Throwable $e ) {
+                    // close() failed — archive may be corrupt, try to continue.
+                }
                 $zip = new ZipArchive();
-                $zip->open( $zip_path );
+                $reopen = $zip->open( $zip_path );
+                if ( true !== $reopen ) {
+                    return new WP_Error( 'zip_reopen', sprintf(
+                        __( 'Failed to reopen ZIP after flushing at %d files.', 'wp-file-guardian' ),
+                        $count
+                    ) );
+                }
             }
         }
 
-        $zip->close();
+        try {
+            @$zip->close();
+        } catch ( \Throwable $e ) {
+            // Ignore close errors on final flush.
+        }
+
+        if ( 0 === $count ) {
+            if ( file_exists( $zip_path ) ) {
+                @unlink( $zip_path );
+            }
+            return new WP_Error( 'no_files_added', __( 'No files could be added to the archive.', 'wp-file-guardian' ) );
+        }
+
         return true;
     }
 

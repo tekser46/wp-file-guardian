@@ -102,8 +102,12 @@ class WPFG_Backup {
             }
         } );
 
-        // Create ZIP.
-        $result = WPFG_Filesystem::create_zip( $zip_path, $files, ABSPATH );
+        // Create ZIP — wrap in try/catch to handle ZipArchive fatal errors.
+        try {
+            $result = WPFG_Filesystem::create_zip( $zip_path, $files, ABSPATH );
+        } catch ( \Throwable $e ) {
+            $result = new WP_Error( 'zip_fatal', $e->getMessage() );
+        }
         if ( is_wp_error( $result ) ) {
             $wpdb->update(
                 $wpdb->prefix . 'wpfg_backups',
