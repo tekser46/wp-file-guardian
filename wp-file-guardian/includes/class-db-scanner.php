@@ -364,7 +364,8 @@ class WPFG_DB_Scanner {
             'wp_site_health_scheduled_check',
             // Our plugin hooks.
             'wpfg_scheduled_scan', 'wpfg_scheduled_backup', 'wpfg_cleanup_old_backups',
-            'wpfg_file_monitor_check',
+            'wpfg_file_monitor_check', 'wpfg_firewall_cleanup', 'wpfg_scheduled_vuln_scan',
+            'wpfg_weekly_summary',
         );
 
         foreach ( $crons as $timestamp => $hooks ) {
@@ -404,21 +405,8 @@ class WPFG_DB_Scanner {
                         'timestamp' => $timestamp,
                     );
                 }
-
-                // Also report unknown third-party hooks as info.
-                if ( ! $is_suspicious ) {
-                    $findings[] = array(
-                        'source'    => 'wp_cron',
-                        'row_id'    => 0,
-                        'label'     => sprintf(
-                            __( 'Third-party cron job: %s', 'wp-file-guardian' ),
-                            $hook
-                        ),
-                        'severity'  => 'info',
-                        'hook'      => $hook,
-                        'timestamp' => $timestamp,
-                    );
-                }
+                // Non-suspicious third-party cron jobs (Yoast, Elementor, etc.)
+                // are normal and expected — do NOT report them as findings.
             }
         }
 

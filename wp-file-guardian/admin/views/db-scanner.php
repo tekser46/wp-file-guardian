@@ -42,7 +42,17 @@
 
     <?php if ( $results && ! empty( $results['items'] ) ) : ?>
     <div class="wpfg-card">
-        <h2><?php printf( esc_html__( 'Results (%d findings)', 'wp-file-guardian' ), $results['total'] ); ?></h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+            <h2 style="margin:0;"><?php printf( esc_html__( 'Results (%d findings)', 'wp-file-guardian' ), $results['total'] ); ?></h2>
+            <div style="display:flex; gap:8px;">
+                <button type="button" class="button" id="wpfg-db-ignore-all-info" title="<?php esc_attr_e( 'Ignore all INFO-level findings', 'wp-file-guardian' ); ?>">
+                    <?php esc_html_e( 'Ignore All Info', 'wp-file-guardian' ); ?>
+                </button>
+                <button type="button" class="button" id="wpfg-db-ignore-all" title="<?php esc_attr_e( 'Ignore all findings on this page', 'wp-file-guardian' ); ?>">
+                    <?php esc_html_e( 'Ignore All', 'wp-file-guardian' ); ?>
+                </button>
+            </div>
+        </div>
         <table class="widefat striped wpfg-table">
             <thead>
                 <tr>

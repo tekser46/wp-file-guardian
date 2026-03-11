@@ -710,6 +710,54 @@
                     }
                 });
             });
+
+            // Ignore All — dismiss every visible finding with a single bulk request.
+            $('#wpfg-db-ignore-all').on('click', function() {
+                var rows = $('table.wpfg-table tbody tr:visible');
+                if (!rows.length) return;
+                if (!confirm('Ignore all ' + rows.length + ' findings?')) return;
+                var btn = $(this);
+                btn.prop('disabled', true).text('Ignoring...');
+                var ids = [];
+                rows.each(function() {
+                    var ignoreBtn = $(this).find('.wpfg-db-ignore-item');
+                    if (ignoreBtn.length) ids.push(ignoreBtn.data('id'));
+                });
+                self.ajax('wpfg_db_ignore_finding', { 'ids[]': ids }, function(resp) {
+                    if (resp.success) {
+                        rows.fadeOut(300);
+                        btn.text('Done! Refreshing...');
+                        setTimeout(function() { location.reload(); }, 600);
+                    } else {
+                        btn.prop('disabled', false).text('Ignore All');
+                        alert(resp.data ? resp.data.message : wpfg.i18n.error);
+                    }
+                });
+            });
+
+            // Ignore All Info — dismiss only INFO-level findings.
+            $('#wpfg-db-ignore-all-info').on('click', function() {
+                var rows = $('table.wpfg-table tbody tr.wpfg-row-info:visible');
+                if (!rows.length) { alert('No INFO findings to ignore.'); return; }
+                if (!confirm('Ignore all ' + rows.length + ' INFO findings?')) return;
+                var btn = $(this);
+                btn.prop('disabled', true).text('Ignoring...');
+                var ids = [];
+                rows.each(function() {
+                    var ignoreBtn = $(this).find('.wpfg-db-ignore-item');
+                    if (ignoreBtn.length) ids.push(ignoreBtn.data('id'));
+                });
+                self.ajax('wpfg_db_ignore_finding', { 'ids[]': ids }, function(resp) {
+                    if (resp.success) {
+                        rows.fadeOut(300);
+                        btn.text('Done! Refreshing...');
+                        setTimeout(function() { location.reload(); }, 600);
+                    } else {
+                        btn.prop('disabled', false).text('Ignore All Info');
+                        alert(resp.data ? resp.data.message : wpfg.i18n.error);
+                    }
+                });
+            });
         },
 
         // --- File Monitor ---

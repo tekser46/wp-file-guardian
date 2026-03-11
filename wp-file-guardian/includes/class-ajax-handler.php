@@ -841,13 +841,22 @@ class WPFG_Ajax_Handler {
 
     public static function wpfg_db_ignore_finding() {
         self::verify();
-        $id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
-        if ( ! $id ) {
+        // Support both single ID and bulk IDs.
+        $ids = array();
+        if ( isset( $_POST['ids'] ) && is_array( $_POST['ids'] ) ) {
+            $ids = array_map( 'absint', $_POST['ids'] );
+        } elseif ( isset( $_POST['id'] ) ) {
+            $ids = array( absint( $_POST['id'] ) );
+        }
+        $ids = array_filter( $ids );
+        if ( empty( $ids ) ) {
             wp_send_json_error( array( 'message' => __( 'Invalid ID.', 'wp-file-guardian' ) ) );
         }
         global $wpdb;
-        $wpdb->delete( $wpdb->prefix . 'wpfg_db_scan_results', array( 'id' => $id ), array( '%d' ) );
-        wp_send_json_success();
+        $table = $wpdb->prefix . 'wpfg_db_scan_results';
+        $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+        $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE id IN ({$placeholders})", $ids ) );
+        wp_send_json_success( array( 'deleted' => count( $ids ) ) );
     }
 
     public static function wpfg_db_view_item() {
