@@ -50,15 +50,29 @@
                     <th><?php esc_html_e( 'Source', 'wp-file-guardian' ); ?></th>
                     <th><?php esc_html_e( 'Description', 'wp-file-guardian' ); ?></th>
                     <th><?php esc_html_e( 'Date', 'wp-file-guardian' ); ?></th>
+                    <th><?php esc_html_e( 'Actions', 'wp-file-guardian' ); ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ( $results['items'] as $item ) : ?>
-                <tr class="wpfg-row-<?php echo esc_attr( $item->severity ); ?>">
+                <tr class="wpfg-row-<?php echo esc_attr( $item->severity ); ?>" id="wpfg-db-row-<?php echo esc_attr( $item->id ); ?>">
                     <td><?php echo WPFG_Helpers::severity_badge( $item->severity ); ?></td>
                     <td><?php echo esc_html( $item->source ); ?> #<?php echo esc_html( $item->row_id ); ?></td>
                     <td><?php echo esc_html( $item->description ); ?></td>
                     <td><?php echo esc_html( $item->created_at ); ?></td>
+                    <td style="white-space:nowrap;">
+                        <?php if ( 'critical' === $item->severity || 'warning' === $item->severity ) : ?>
+                            <button type="button" class="button button-small wpfg-db-view-item" data-source="<?php echo esc_attr( $item->source ); ?>" data-row-id="<?php echo esc_attr( $item->row_id ); ?>" title="<?php esc_attr_e( 'View Details', 'wp-file-guardian' ); ?>">
+                                <?php esc_html_e( 'View', 'wp-file-guardian' ); ?>
+                            </button>
+                            <button type="button" class="button button-small button-link-delete wpfg-db-clean-item" data-source="<?php echo esc_attr( $item->source ); ?>" data-row-id="<?php echo esc_attr( $item->row_id ); ?>" title="<?php esc_attr_e( 'Clean this item', 'wp-file-guardian' ); ?>">
+                                <?php esc_html_e( 'Clean', 'wp-file-guardian' ); ?>
+                            </button>
+                        <?php endif; ?>
+                        <button type="button" class="button button-small wpfg-db-ignore-item" data-id="<?php echo esc_attr( $item->id ); ?>" title="<?php esc_attr_e( 'Dismiss this finding', 'wp-file-guardian' ); ?>">
+                            <?php esc_html_e( 'Ignore', 'wp-file-guardian' ); ?>
+                        </button>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

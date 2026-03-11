@@ -17,6 +17,7 @@
             this.bindModal();
             this.bindFileActions();
             this.bindDBScanner();
+            this.bindDbActions();
             this.bindMonitor();
             this.bindHardening();
             this.bindFirewall();
@@ -594,6 +595,60 @@
             });
         },
 
+        // --- DB Scanner Result Actions ---
+        bindDbActions: function() {
+            var self = this;
+
+            // Ignore finding.
+            $(document).on('click', '.wpfg-db-ignore-item', function() {
+                var btn = $(this);
+                var id = btn.data('id');
+                btn.prop('disabled', true);
+                self.ajax('wpfg_db_ignore_finding', { id: id }, function(resp) {
+                    if (resp.success) {
+                        $('#wpfg-db-row-' + id).fadeOut(300, function() { $(this).remove(); });
+                    } else {
+                        btn.prop('disabled', false);
+                        alert(resp.data ? resp.data.message : wpfg.i18n.error);
+                    }
+                });
+            });
+
+            // View item details.
+            $(document).on('click', '.wpfg-db-view-item', function() {
+                var btn = $(this);
+                var source = btn.data('source');
+                var rowId = btn.data('row-id');
+                btn.prop('disabled', true);
+                self.ajax('wpfg_db_view_item', { source: source, row_id: rowId }, function(resp) {
+                    btn.prop('disabled', false);
+                    if (resp.success) {
+                        alert(resp.data.content);
+                    } else {
+                        alert(resp.data ? resp.data.message : wpfg.i18n.error);
+                    }
+                });
+            });
+
+            // Clean item.
+            $(document).on('click', '.wpfg-db-clean-item', function() {
+                if (!confirm(wpfg.i18n.confirm_delete || 'Are you sure? This will permanently delete this item.')) return;
+                var btn = $(this);
+                var source = btn.data('source');
+                var rowId = btn.data('row-id');
+                var row = btn.closest('tr');
+                btn.prop('disabled', true);
+                self.ajax('wpfg_db_clean_item', { source: source, row_id: rowId }, function(resp) {
+                    if (resp.success) {
+                        row.fadeOut(300, function() { $(this).remove(); });
+                    } else {
+                        btn.prop('disabled', false);
+                        alert(resp.data ? resp.data.message : wpfg.i18n.error);
+                    }
+                });
+            });
+        },
+
         // --- File Monitor ---
         bindMonitor: function() {
             var self = this;
@@ -968,30 +1023,23 @@
                 });
             });
 
-            // Verify and enable.
+            // Verify TOTP code (test).
             $('#wpfg-2fa-verify').on('click', function() {
-                var code = $('#wpfg-2fa-code').val().trim();
-                var secret = $('#wpfg-2fa-secret-key').text().trim();
-                if (!code || code.length !== 6) {
+                var code = $('#wpfg-2fa-test-code').val().trim();
+                if (!code || code.length < 6) {
                     alert('Please enter the 6-digit code from your authenticator app.');
                     return;
                 }
                 var btn = $(this);
                 btn.prop('disabled', true);
 
-                self.ajax('wpfg_2fa_verify_setup', { code: code, secret: secret }, function(resp) {
+                self.ajax('wpfg_2fa_verify_setup', { code: code }, function(resp) {
                     btn.prop('disabled', false);
+                    var $result = $('#wpfg-2fa-verify-result');
                     if (resp.success) {
-                        $('#wpfg-2fa-status').text('2FA enabled successfully!');
-                        if (resp.data.backup_codes) {
-                            var codesHtml = '<h3>Backup Codes</h3><p>Save these codes securely:</p><pre>';
-                            resp.data.backup_codes.forEach(function(c) { codesHtml += c + '\n'; });
-                            codesHtml += '</pre>';
-                            self.showModal(codesHtml);
-                        }
-                        setTimeout(function() { location.reload(); }, 2000);
+                        $result.html('<span style="color:#00a32a;font-weight:500;">&#10003; Code is valid!</span>').show();
                     } else {
-                        alert(resp.data ? resp.data.message : 'Verification failed.');
+                        $result.html('<span style="color:#d63638;font-weight:500;">&#10007; ' + (resp.data ? resp.data.message : 'Invalid code.') + '</span>').show();
                     }
                 });
             });

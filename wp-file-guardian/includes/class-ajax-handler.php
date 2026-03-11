@@ -62,6 +62,9 @@ class WPFG_Ajax_Handler {
             'wpfg_check_permissions',
             'wpfg_fix_permission',
             'wpfg_fix_permissions_bulk',
+            'wpfg_db_ignore_finding',
+            'wpfg_db_clean_item',
+            'wpfg_db_view_item',
         );
 
         foreach ( $actions as $action ) {
@@ -567,6 +570,20 @@ class WPFG_Ajax_Handler {
 
     public static function wpfg_apply_hardening() {
         self::verify();
+
+        // Support single key/value toggle from inline script.
+        $key   = isset( $_POST['key'] ) ? sanitize_text_field( $_POST['key'] ) : '';
+        $value = isset( $_POST['value'] ) ? absint( $_POST['value'] ) : 0;
+
+        if ( $key ) {
+            // Single toggle.
+            WPFG_Settings::set( $key, $value ? true : false );
+            WPFG_Hardening::apply_all();
+            wp_send_json_success( array( 'key' => $key, 'value' => $value ) );
+            return;
+        }
+
+        // Bulk settings (from admin.js bindHardening, if used).
         $settings = isset( $_POST['settings'] ) ? (array) $_POST['settings'] : array();
         $result = WPFG_Hardening::apply_settings( $settings );
         if ( is_wp_error( $result ) ) {
@@ -719,12 +736,16 @@ class WPFG_Ajax_Handler {
         self::verify();
         $user_id = get_current_user_id();
         $code    = isset( $_POST['code'] ) ? sanitize_text_field( $_POST['code'] ) : '';
-        $secret  = isset( $_POST['secret'] ) ? sanitize_text_field( $_POST['secret'] ) : '';
-        $result  = WPFG_Two_Factor::verify_and_enable( $user_id, $secret, $code );
-        if ( is_wp_error( $result ) ) {
-            wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+
+        if ( empty( $code ) ) {
+            wp_send_json_error( array( 'message' => __( 'Please enter a verification code.', 'wp-file-guardian' ) ) );
         }
-        wp_send_json_success( $result );
+
+        $valid = WPFG_Two_Factor::verify_code( $user_id, $code );
+        if ( $valid ) {
+            wp_send_json_success( array( 'message' => __( 'Code verified successfully.', 'wp-file-guardian' ) ) );
+        }
+        wp_send_json_error( array( 'message' => __( 'Invalid code. Please check your authenticator app and try again.', 'wp-file-guardian' ) ) );
     }
 
     public static function wpfg_2fa_disable() {
@@ -778,5 +799,94 @@ class WPFG_Ajax_Handler {
         $items = isset( $_POST['items'] ) ? (array) $_POST['items'] : array();
         $result = WPFG_Permission_Checker::fix_bulk( $items );
         wp_send_json_success( $result );
+    }
+
+    // ------------------------------------------------------------------
+    // DB Scanner Actions
+    // ------------------------------------------------------------------
+
+    public static function wpfg_db_ignore_finding() {
+        self::verify();
+        $id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+        if ( ! $id ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid ID.', 'wp-file-guardian' ) ) );
+        }
+        global $wpdb;
+        $wpdb->delete( $wpdb->prefix . 'wpfg_db_scan_results', array( 'id' => $id ), array( '%d' ) );
+        wp_send_json_success();
+    }
+
+    public static function wpfg_db_view_item() {
+        self::verify();
+        $source = isset( $_POST['source'] ) ? sanitize_text_field( $_POST['source'] ) : '';
+        $row_id = isset( $_POST['row_id'] ) ? absint( $_POST['row_id'] ) : 0;
+        if ( ! $source || ! $row_id ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid request.', 'wp-file-guardian' ) ) );
+        }
+
+        global $wpdb;
+        $content = '';
+
+        switch ( $source ) {
+            case 'wp_options':
+                $row = $wpdb->get_row( $wpdb->prepare( "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_id = %d", $row_id ) );
+                if ( $row ) {
+                    $content = sprintf( "Option: %s\n\nValue (first 2000 chars):\n%s", $row->option_name, mb_substr( $row->option_value, 0, 2000 ) );
+                }
+                break;
+            case 'wp_posts':
+                $row = $wpdb->get_row( $wpdb->prepare( "SELECT post_title, post_type, post_content FROM {$wpdb->posts} WHERE ID = %d", $row_id ) );
+                if ( $row ) {
+                    $content = sprintf( "Title: %s\nType: %s\n\nContent (first 2000 chars):\n%s", $row->post_title, $row->post_type, mb_substr( $row->post_content, 0, 2000 ) );
+                }
+                break;
+            case 'wp_comments':
+                $row = $wpdb->get_row( $wpdb->prepare( "SELECT comment_author, comment_author_url, comment_content FROM {$wpdb->comments} WHERE comment_ID = %d", $row_id ) );
+                if ( $row ) {
+                    $content = sprintf( "Author: %s\nURL: %s\n\nComment (first 2000 chars):\n%s", $row->comment_author, $row->comment_author_url, mb_substr( $row->comment_content, 0, 2000 ) );
+                }
+                break;
+            case 'wp_users':
+                $row = $wpdb->get_row( $wpdb->prepare( "SELECT user_login, user_email, user_url FROM {$wpdb->users} WHERE ID = %d", $row_id ) );
+                if ( $row ) {
+                    $content = sprintf( "Login: %s\nEmail: %s\nURL: %s", $row->user_login, $row->user_email, $row->user_url );
+                }
+                break;
+            case 'wp_cron':
+                $cron = _get_cron_array();
+                $content = __( 'Cron jobs are informational only and cannot be viewed individually.', 'wp-file-guardian' );
+                break;
+            default:
+                $content = __( 'Unknown source table.', 'wp-file-guardian' );
+        }
+
+        wp_send_json_success( array( 'content' => $content ) );
+    }
+
+    public static function wpfg_db_clean_item() {
+        self::verify();
+        $source = isset( $_POST['source'] ) ? sanitize_text_field( $_POST['source'] ) : '';
+        $row_id = isset( $_POST['row_id'] ) ? absint( $_POST['row_id'] ) : 0;
+        if ( ! $source || ! $row_id ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid request.', 'wp-file-guardian' ) ) );
+        }
+
+        global $wpdb;
+
+        switch ( $source ) {
+            case 'wp_options':
+                $wpdb->delete( $wpdb->options, array( 'option_id' => $row_id ), array( '%d' ) );
+                WPFG_Logger::log( 'db_clean', $source . '#' . $row_id, 'success', 'Option deleted' );
+                break;
+            case 'wp_comments':
+                wp_delete_comment( $row_id, true );
+                WPFG_Logger::log( 'db_clean', $source . '#' . $row_id, 'success', 'Comment deleted' );
+                break;
+            default:
+                wp_send_json_error( array( 'message' => __( 'Cleaning is only available for options and comments. For posts and users, please use WordPress admin.', 'wp-file-guardian' ) ) );
+                return;
+        }
+
+        wp_send_json_success( array( 'message' => __( 'Item cleaned successfully.', 'wp-file-guardian' ) ) );
     }
 }
