@@ -76,7 +76,7 @@ function wpfg_maybe_upgrade() {
         require_once WPFG_PLUGIN_DIR . 'includes/class-helpers.php';
         require_once WPFG_PLUGIN_DIR . 'includes/class-settings.php';
         require_once WPFG_PLUGIN_DIR . 'includes/class-activator.php';
-        WPFG_Activator::activate();
+        WPFG_Activator::activate( true );
     }
 }
 add_action( 'admin_init', 'wpfg_maybe_upgrade' );

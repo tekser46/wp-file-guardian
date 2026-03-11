@@ -6,13 +6,15 @@ if ( ! defined( 'ABSPATH' ) ) exit;
  */
 class WPFG_Activator {
 
-    public static function activate() {
+    public static function activate( $is_upgrade = false ) {
         self::create_tables();
         self::create_directories();
         self::set_defaults();
         update_option( 'wpfg_db_version', WPFG_DB_VERSION );
-        // Flush rewrite rules after activation.
-        flush_rewrite_rules();
+        // Only flush rewrite rules on first activation, not upgrades.
+        if ( ! $is_upgrade ) {
+            flush_rewrite_rules();
+        }
     }
 
     /**

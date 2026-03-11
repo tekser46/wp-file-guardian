@@ -123,12 +123,15 @@
         <div class="wpfg-card wpfg-card-wide">
             <h2><?php esc_html_e( 'Scan History (Last 30 Days)', 'wp-file-guardian' ); ?></h2>
             <?php if ( ! empty( $scan_history['labels'] ) ) : ?>
-            <canvas id="wpfg-scan-chart" height="250"></canvas>
+            <div style="position:relative; height:180px;">
+                <canvas id="wpfg-scan-chart"></canvas>
+            </div>
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
                     if (typeof Chart === 'undefined') return;
-                    var ctx = document.getElementById('wpfg-scan-chart').getContext('2d');
-                    new Chart(ctx, {
+                    var ctx = document.getElementById('wpfg-scan-chart');
+                    if (!ctx) return;
+                    new Chart(ctx.getContext('2d'), {
                         type: 'line',
                         data: {
                             labels: <?php echo wp_json_encode( $scan_history['labels'] ); ?>,
@@ -137,7 +140,9 @@
                                     label: '<?php echo esc_js( __( 'Critical', 'wp-file-guardian' ) ); ?>',
                                     data: <?php echo wp_json_encode( $scan_history['critical'] ); ?>,
                                     borderColor: '#d63638',
-                                    backgroundColor: 'rgba(214,54,56,0.1)',
+                                    backgroundColor: 'rgba(214,54,56,0.08)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
                                     tension: 0.3,
                                     fill: true
                                 },
@@ -145,7 +150,9 @@
                                     label: '<?php echo esc_js( __( 'Warning', 'wp-file-guardian' ) ); ?>',
                                     data: <?php echo wp_json_encode( $scan_history['warning'] ); ?>,
                                     borderColor: '#dba617',
-                                    backgroundColor: 'rgba(219,166,23,0.1)',
+                                    backgroundColor: 'rgba(219,166,23,0.08)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
                                     tension: 0.3,
                                     fill: true
                                 },
@@ -153,7 +160,9 @@
                                     label: '<?php echo esc_js( __( 'Info', 'wp-file-guardian' ) ); ?>',
                                     data: <?php echo wp_json_encode( $scan_history['info'] ); ?>,
                                     borderColor: '#2271b1',
-                                    backgroundColor: 'rgba(34,113,177,0.1)',
+                                    backgroundColor: 'rgba(34,113,177,0.08)',
+                                    borderWidth: 2,
+                                    pointRadius: 2,
                                     tension: 0.3,
                                     fill: true
                                 }
@@ -162,9 +171,13 @@
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            plugins: { legend: { position: 'bottom' } },
+                            animation: { duration: 400 },
+                            plugins: {
+                                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 15, font: { size: 11 } } }
+                            },
                             scales: {
-                                y: { beginAtZero: true, ticks: { precision: 0 } }
+                                y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } },
+                                x: { ticks: { font: { size: 10 }, maxRotation: 45 } }
                             }
                         }
                     });
