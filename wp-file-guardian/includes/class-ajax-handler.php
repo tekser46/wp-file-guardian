@@ -38,6 +38,8 @@ class WPFG_Ajax_Handler {
             'wpfg_cleanup_revisions',
             'wpfg_build_baseline',
             'wpfg_compare_files',
+            'wpfg_delete_change_history',
+            'wpfg_clear_change_history',
             'wpfg_test_remote',
             'wpfg_upload_remote',
             // v3 actions.
@@ -564,6 +566,24 @@ class WPFG_Ajax_Handler {
             wp_send_json_error( array( 'message' => $result->get_error_message() ) );
         }
         wp_send_json_success( $result );
+    }
+
+    public static function wpfg_delete_change_history() {
+        self::verify();
+        $id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+        if ( ! $id ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid ID.', 'wp-file-guardian' ) ) );
+        }
+        global $wpdb;
+        $wpdb->delete( $wpdb->prefix . 'wpfg_file_changes', array( 'id' => $id ), array( '%d' ) );
+        wp_send_json_success();
+    }
+
+    public static function wpfg_clear_change_history() {
+        self::verify();
+        global $wpdb;
+        $wpdb->query( "TRUNCATE TABLE {$wpdb->prefix}wpfg_file_changes" );
+        wp_send_json_success();
     }
 
     // ---- v2: Remote Backup ----

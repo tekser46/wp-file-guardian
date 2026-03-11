@@ -49,7 +49,12 @@
     <!-- Change History -->
     <?php if ( ! empty( $history ) ) : ?>
     <div class="wpfg-card">
-        <h2><?php esc_html_e( 'Change History', 'wp-file-guardian' ); ?></h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+            <h2 style="margin:0;"><?php esc_html_e( 'Change History', 'wp-file-guardian' ); ?></h2>
+            <button type="button" class="button wpfg-btn-danger" id="wpfg-clear-history">
+                <?php esc_html_e( 'Clear All History', 'wp-file-guardian' ); ?>
+            </button>
+        </div>
         <table class="widefat striped wpfg-table">
             <thead>
                 <tr>
@@ -57,19 +62,22 @@
                     <th><?php esc_html_e( 'Added', 'wp-file-guardian' ); ?></th>
                     <th><?php esc_html_e( 'Modified', 'wp-file-guardian' ); ?></th>
                     <th><?php esc_html_e( 'Deleted', 'wp-file-guardian' ); ?></th>
-                    <th><?php esc_html_e( 'Details', 'wp-file-guardian' ); ?></th>
+                    <th><?php esc_html_e( 'Actions', 'wp-file-guardian' ); ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ( $history as $entry ) : ?>
-                <tr>
+                <tr id="wpfg-history-row-<?php echo esc_attr( $entry->id ); ?>">
                     <td><?php echo esc_html( $entry->created_at ); ?></td>
                     <td><span class="wpfg-text-critical"><?php echo esc_html( $entry->added_count ); ?></span></td>
                     <td><span class="wpfg-text-warning"><?php echo esc_html( $entry->modified_count ); ?></span></td>
                     <td><?php echo esc_html( $entry->deleted_count ); ?></td>
-                    <td>
+                    <td style="white-space:nowrap;">
                         <button type="button" class="button button-small wpfg-view-changes" data-details="<?php echo esc_attr( $entry->details ); ?>">
                             <?php esc_html_e( 'View', 'wp-file-guardian' ); ?>
+                        </button>
+                        <button type="button" class="button button-small button-link-delete wpfg-delete-history" data-id="<?php echo esc_attr( $entry->id ); ?>">
+                            <?php esc_html_e( 'Delete', 'wp-file-guardian' ); ?>
                         </button>
                     </td>
                 </tr>

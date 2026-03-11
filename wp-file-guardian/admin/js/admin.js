@@ -847,6 +847,32 @@
                 }
                 self.showModal(html || '<p>No details available.</p>');
             });
+
+            // Delete single history entry.
+            $(document).on('click', '.wpfg-delete-history', function() {
+                if (!confirm(wpfg.i18n.confirm_delete)) return;
+                var btn = $(this);
+                var id = btn.data('id');
+                self.ajax('wpfg_delete_change_history', { id: id }, function(resp) {
+                    if (resp.success) {
+                        $('#wpfg-history-row-' + id).fadeOut(300, function() { $(this).remove(); });
+                    }
+                });
+            });
+
+            // Clear all history.
+            $('#wpfg-clear-history').on('click', function() {
+                if (!confirm(wpfg.i18n.confirm_delete)) return;
+                var btn = $(this);
+                btn.prop('disabled', true);
+                self.ajax('wpfg_clear_change_history', {}, function(resp) {
+                    if (resp.success) {
+                        location.reload();
+                    } else {
+                        btn.prop('disabled', false);
+                    }
+                });
+            });
         },
 
         // --- v3: Hardening ---
