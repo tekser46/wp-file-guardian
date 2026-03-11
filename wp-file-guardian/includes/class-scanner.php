@@ -181,15 +181,15 @@ class WPFG_Scanner {
                 $notices[] = array( 'type' => 'large_file', 'severity' => 'info', 'desc' => sprintf( __( 'Large file: %s', 'wp-file-guardian' ), WPFG_Helpers::format_bytes( $size ) ) );
             }
 
-            // Writable sensitive files.
-            if ( in_array( $basename, WPFG_Helpers::sensitive_files(), true ) && $info['is_writable'] ) {
-                $findings[] = array( 'type' => 'writable_sensitive', 'severity' => 'warning', 'desc' => __( 'Sensitive file is writable.', 'wp-file-guardian' ) );
+            // Writable sensitive files — only wp-config.php should not be world-writable.
+            // .htaccess files must be writable for WordPress and plugins to function.
+            if ( 'wp-config.php' === $basename && $info['is_writable'] ) {
+                $findings[] = array( 'type' => 'writable_sensitive', 'severity' => 'warning', 'desc' => __( 'wp-config.php is writable.', 'wp-file-guardian' ) );
             }
 
-            // Recently modified (last 24h) — informational only, not a threat.
-            if ( $info['modified'] > ( time() - DAY_IN_SECONDS ) ) {
-                $notices[] = array( 'type' => 'recently_modified', 'severity' => 'info', 'desc' => __( 'File modified in the last 24 hours.', 'wp-file-guardian' ) );
-            }
+            // Recently modified (last 24h) — purely informational, not stored
+            // or appended. Recent modification is expected after plugin/theme updates
+            // and does not indicate a security issue on its own.
 
             // Duplicate backup / archive / temp files.
             $ext = $info['extension'];
@@ -197,7 +197,23 @@ class WPFG_Scanner {
                 $notices[] = array( 'type' => 'temp_file', 'severity' => 'info', 'desc' => __( 'Temporary or backup file.', 'wp-file-guardian' ) );
             }
             if ( in_array( $ext, array( 'zip', 'tar', 'gz', 'sql' ), true ) ) {
-                $findings[] = array( 'type' => 'archive_file', 'severity' => 'warning', 'desc' => __( 'Archive or database dump found.', 'wp-file-guardian' ) );
+                // Archives inside plugin/theme directories are normal (bundled assets,
+                // template kits, etc.). Only flag them in unexpected locations.
+                $norm_path = wp_normalize_path( $file_path );
+                $in_plugins = strpos( $norm_path, wp_normalize_path( WP_PLUGIN_DIR . '/' ) ) === 0;
+                $in_themes  = strpos( $norm_path, wp_normalize_path( get_theme_root() . '/' ) ) === 0;
+                $in_known_uploads = false;
+                $uploads_base = wp_normalize_path( wp_upload_dir()['basedir'] );
+                $known_archive_dirs = array( '/template-kits/', '/starter-templates/', '/elementor/', '/woocommerce_uploads/' );
+                foreach ( $known_archive_dirs as $kd ) {
+                    if ( strpos( $norm_path, $uploads_base . $kd ) === 0 ) {
+                        $in_known_uploads = true;
+                        break;
+                    }
+                }
+                if ( ! $in_plugins && ! $in_themes && ! $in_known_uploads ) {
+                    $findings[] = array( 'type' => 'archive_file', 'severity' => 'warning', 'desc' => __( 'Archive or database dump found.', 'wp-file-guardian' ) );
+                }
             }
 
             // PHP files: scan for malware patterns.
@@ -304,9 +320,10 @@ class WPFG_Scanner {
         $done      = $processed >= $total;
 
         // Update session progress.
+        $total_issues = self::count_session_issues( $session_id );
         $update = array(
             'scanned_files' => $processed,
-            'issues_found'  => self::count_session_issues( $session_id ),
+            'issues_found'  => $total_issues,
         );
 
         if ( $done ) {
@@ -314,17 +331,50 @@ class WPFG_Scanner {
             $update['completed_at'] = current_time( 'mysql' );
             $update['total_size']   = self::get_session_total_size( $session_id );
             delete_transient( 'wpfg_scan_files_' . $session_id );
-            WPFG_Logger::log( 'scan_completed', '', 'success', sprintf( 'Session %d: %d files scanned, %d issues.', $session_id, $total, $update['issues_found'] ) );
+            WPFG_Logger::log( 'scan_completed', '', 'success', sprintf( 'Session %d: %d files scanned, %d issues.', $session_id, $total, $total_issues ) );
         }
 
         self::update_session( $session_id, $update );
 
+        // Gather threat info from this batch for live feed display.
+        $batch_threats = self::get_batch_threats( $session_id, $offset, count( $batch ) );
+
+        // Current file being scanned (last file in this batch for display).
+        $current_file = ! empty( $batch ) ? WPFG_Helpers::relative_path( end( $batch ) ) : '';
+
         return array(
-            'processed' => $processed,
-            'total'     => $total,
-            'done'      => $done,
-            'issues'    => $issues,
+            'processed'     => $processed,
+            'total'         => $total,
+            'done'          => $done,
+            'issues'        => $issues,
+            'total_issues'  => $total_issues,
+            'current_file'  => $current_file,
+            'batch_threats' => $batch_threats,
         );
+    }
+
+    /**
+     * Get threats found in the most recent batch for live feed display.
+     */
+    private static function get_batch_threats( $session_id, $offset, $batch_count ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wpfg_scan_results';
+        // Get the threats from this session that were just added (last N results).
+        $results = $wpdb->get_results( $wpdb->prepare(
+            "SELECT file_path, severity, description FROM {$table}
+             WHERE session_id = %d AND severity IN ('critical', 'warning')
+             ORDER BY id DESC LIMIT 5",
+            $session_id
+        ) );
+        $threats = array();
+        foreach ( $results as $r ) {
+            $threats[] = array(
+                'file'     => WPFG_Helpers::relative_path( $r->file_path ),
+                'severity' => $r->severity,
+                'desc'     => $r->description,
+            );
+        }
+        return $threats;
     }
 
     /**
@@ -528,20 +578,21 @@ class WPFG_Scanner {
 
         $slugs = array();
 
-        // Get all installed plugins and check which ones come from wordpress.org.
+        // Get all installed plugins.
         if ( ! function_exists( 'get_plugins' ) ) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
-        $all_plugins = get_plugins();
-        $update_data = get_site_transient( 'update_plugins' );
+        $all_plugins   = get_plugins();
+        $active_plugins = get_option( 'active_plugins', array() );
+        $update_data   = get_site_transient( 'update_plugins' );
 
         foreach ( $all_plugins as $plugin_file => $plugin_data ) {
             $slug = dirname( $plugin_file );
             if ( '.' === $slug ) {
                 $slug = basename( $plugin_file, '.php' );
             }
-            // A plugin is from wordpress.org if it appears in the update check data
-            // (either as up-to-date, or with an available update).
+            // A plugin is verified if it appears in the WordPress.org update
+            // check data (either up-to-date or with an available update).
             $in_repo = false;
             if ( $update_data ) {
                 if ( isset( $update_data->response[ $plugin_file ] ) ||
@@ -549,14 +600,21 @@ class WPFG_Scanner {
                     $in_repo = true;
                 }
             }
-            if ( $in_repo ) {
+            // Also trust any currently active plugin — premium/commercial
+            // plugins won't appear in wordpress.org data but the admin
+            // explicitly installed and activated them. Flagging their code
+            // as critical/warning just creates noise.
+            $is_active = in_array( $plugin_file, $active_plugins, true );
+            if ( $in_repo || $is_active ) {
                 $slugs[ $slug ] = true;
             }
         }
 
-        // Get all installed themes and check which come from wordpress.org.
-        $all_themes  = wp_get_themes();
-        $theme_data  = get_site_transient( 'update_themes' );
+        // Get all installed themes — trust wordpress.org themes and the active theme.
+        $all_themes    = wp_get_themes();
+        $active_theme  = get_stylesheet();
+        $parent_theme  = get_template();
+        $theme_data    = get_site_transient( 'update_themes' );
         foreach ( $all_themes as $theme_slug => $theme_obj ) {
             $in_repo = false;
             if ( $theme_data ) {
@@ -565,7 +623,8 @@ class WPFG_Scanner {
                     $in_repo = true;
                 }
             }
-            if ( $in_repo ) {
+            $is_active = ( $theme_slug === $active_theme || $theme_slug === $parent_theme );
+            if ( $in_repo || $is_active ) {
                 $slugs[ $theme_slug ] = true;
             }
         }

@@ -194,6 +194,7 @@ class WPFG_Filesystem {
         }
 
         $base = $base ? rtrim( wp_normalize_path( $base ), '/' ) . '/' : '';
+        $count = 0;
 
         foreach ( $files as $file ) {
             if ( ! is_file( $file ) || ! is_readable( $file ) ) {
@@ -204,6 +205,15 @@ class WPFG_Filesystem {
                 $local = substr( wp_normalize_path( $file ), strlen( $base ) );
             }
             $zip->addFile( $file, $local );
+            $count++;
+
+            // Close and reopen every 500 files to flush memory and prevent
+            // ZipArchive from holding too many file handles open at once.
+            if ( $count % 500 === 0 ) {
+                $zip->close();
+                $zip = new ZipArchive();
+                $zip->open( $zip_path );
+            }
         }
 
         $zip->close();

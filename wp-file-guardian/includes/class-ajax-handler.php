@@ -326,10 +326,33 @@ class WPFG_Ajax_Handler {
 
         WPFG_Logger::log( 'backup_download', $backup->file_path, 'success' );
 
+        // Allow unlimited time for large file downloads.
+        @set_time_limit( 0 );
+
+        // Clear all output buffers to prevent memory issues with large files.
+        while ( ob_get_level() ) {
+            ob_end_clean();
+        }
+
+        $file_size = filesize( $backup->file_path );
+
         header( 'Content-Type: application/zip' );
         header( 'Content-Disposition: attachment; filename="' . basename( $backup->file_path ) . '"' );
-        header( 'Content-Length: ' . filesize( $backup->file_path ) );
-        readfile( $backup->file_path ); // phpcs:ignore
+        header( 'Content-Length: ' . $file_size );
+        header( 'Content-Transfer-Encoding: binary' );
+        header( 'Cache-Control: must-revalidate' );
+        header( 'Pragma: public' );
+
+        // Stream the file in 8KB chunks instead of loading it all at once.
+        // This handles multi-GB files without exceeding memory limits.
+        $handle = fopen( $backup->file_path, 'rb' );
+        if ( $handle ) {
+            while ( ! feof( $handle ) ) {
+                echo fread( $handle, 8192 ); // phpcs:ignore
+                flush();
+            }
+            fclose( $handle );
+        }
         exit;
     }
 

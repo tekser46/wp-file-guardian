@@ -26,6 +26,10 @@ class WPFG_Backup {
      * @return int|WP_Error Backup record ID or error.
      */
     public static function create( $type = 'full', $custom_paths = array() ) {
+        // Allow long-running backup creation.
+        @set_time_limit( 0 );
+        wp_raise_memory_limit( 'admin' );
+
         $backup_dir = self::dir();
         if ( ! is_dir( $backup_dir ) ) {
             wp_mkdir_p( $backup_dir );
@@ -37,14 +41,20 @@ class WPFG_Backup {
             return new WP_Error( 'no_paths', __( 'No valid paths to back up.', 'wp-file-guardian' ) );
         }
 
-        // Collect files.
-        $files = array();
+        // Collect files (skip plugin's own storage directory).
+        $files       = array();
+        $storage_dir = wp_normalize_path( WPFG_Helpers::storage_dir() );
         foreach ( $paths as $path ) {
             $abs = ABSPATH . ltrim( $path, '/' );
             if ( is_file( $abs ) ) {
                 $files[] = $abs;
             } elseif ( is_dir( $abs ) ) {
                 foreach ( WPFG_Filesystem::scan_directory( $abs ) as $f ) {
+                    $norm = wp_normalize_path( $f );
+                    // Skip the plugin's own quarantine/backup/temp files.
+                    if ( strpos( $norm, $storage_dir ) === 0 ) {
+                        continue;
+                    }
                     $files[] = $f;
                 }
             }
@@ -72,6 +82,25 @@ class WPFG_Backup {
             array( '%d', '%s', '%s', '%d', '%s', '%s' )
         );
         $backup_id = $wpdb->insert_id;
+
+        // Register shutdown handler to catch fatal errors (memory, timeout).
+        register_shutdown_function( function() use ( $wpdb, $backup_id, $zip_path ) {
+            $error = error_get_last();
+            if ( $error && in_array( $error['type'], array( E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR ), true ) ) {
+                $wpdb->update(
+                    $wpdb->prefix . 'wpfg_backups',
+                    array(
+                        'status' => 'failed',
+                        'notes'  => sprintf( 'Fatal error: %s in %s on line %d', $error['message'], $error['file'], $error['line'] ),
+                    ),
+                    array( 'id' => $backup_id )
+                );
+                // Clean up incomplete zip file.
+                if ( file_exists( $zip_path ) ) {
+                    @unlink( $zip_path );
+                }
+            }
+        } );
 
         // Create ZIP.
         $result = WPFG_Filesystem::create_zip( $zip_path, $files, ABSPATH );
@@ -170,11 +199,29 @@ class WPFG_Backup {
     }
 
     /**
+     * Mark stale "creating" backups as failed.
+     * Called before listing backups so the user sees accurate status.
+     */
+    public static function cleanup_stale() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wpfg_backups';
+        // Any backup stuck in "creating" for more than 10 minutes is considered failed.
+        $wpdb->query(
+            "UPDATE {$table} SET status = 'failed', notes = 'Timed out during creation.'
+             WHERE status = 'creating'
+               AND created_at < DATE_SUB( NOW(), INTERVAL 10 MINUTE )"
+        );
+    }
+
+    /**
      * Get list of backups.
      */
     public static function get_list( $args = array() ) {
         global $wpdb;
         $table = $wpdb->prefix . 'wpfg_backups';
+
+        // Clean up stuck backups first.
+        self::cleanup_stale();
 
         $defaults = array(
             'per_page' => 20,

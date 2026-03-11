@@ -34,9 +34,9 @@
         <!-- Modern Progress -->
         <div id="wpfg-scan-progress" class="wpfg-scan-progress" style="display:none;">
             <div class="wpfg-progress-ring-container">
-                <svg class="wpfg-progress-ring" width="100" height="100" viewBox="0 0 100 100">
-                    <circle class="wpfg-progress-ring-bg" cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" stroke-width="6"/>
-                    <circle class="wpfg-progress-ring-fill" id="wpfg-ring-fill" cx="50" cy="50" r="42" fill="none" stroke="url(#wpfg-gradient)" stroke-width="6" stroke-linecap="round" stroke-dasharray="263.89" stroke-dashoffset="263.89" transform="rotate(-90 50 50)"/>
+                <svg class="wpfg-progress-ring" width="120" height="120" viewBox="0 0 120 120">
+                    <circle class="wpfg-progress-ring-bg" cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="7"/>
+                    <circle class="wpfg-progress-ring-fill" id="wpfg-ring-fill" cx="60" cy="60" r="50" fill="none" stroke="url(#wpfg-gradient)" stroke-width="7" stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="314.16" transform="rotate(-90 60 60)"/>
                     <defs>
                         <linearGradient id="wpfg-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
                             <stop offset="0%" style="stop-color:#6366f1"/>
@@ -56,8 +56,23 @@
                 <div class="wpfg-progress-meta">
                     <span id="wpfg-scan-files-count">0</span> <?php esc_html_e( 'files scanned', 'wp-file-guardian' ); ?>
                     <span class="wpfg-dot-separator"></span>
-                    <span id="wpfg-scan-issues-count">0</span> <?php esc_html_e( 'issues found', 'wp-file-guardian' ); ?>
+                    <span id="wpfg-scan-issues-count" class="wpfg-issues-counter">0</span> <?php esc_html_e( 'threats found', 'wp-file-guardian' ); ?>
                 </div>
+                <!-- Live file path ticker -->
+                <div class="wpfg-live-file" id="wpfg-live-file">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                    <span id="wpfg-live-file-path"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Threat Feed (shown during scan) -->
+        <div id="wpfg-live-threats" class="wpfg-live-threats" style="display:none;">
+            <div class="wpfg-live-threats-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d63638" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <strong><?php esc_html_e( 'Live Threat Detection', 'wp-file-guardian' ); ?></strong>
+            </div>
+            <div class="wpfg-live-threats-list" id="wpfg-live-threats-list">
             </div>
         </div>
     </div>

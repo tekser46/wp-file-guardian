@@ -44,20 +44,25 @@
             var self = this;
             var scanning = false;
             var sessionId = 0;
+            var seenThreats = {};
 
             $('.wpfg-start-scan').on('click', function() {
                 if (scanning) return;
                 scanning = true;
+                seenThreats = {};
                 var type = $(this).data('scan-type') || 'full';
                 $('.wpfg-start-scan').prop('disabled', true);
                 $(this).addClass('wpfg-btn-scanning');
                 $('#wpfg-cancel-scan').show();
                 $('#wpfg-scan-progress').slideDown(300);
+                $('#wpfg-live-threats').hide();
+                $('#wpfg-live-threats-list').empty();
                 $('#wpfg-scan-status').text(wpfg.i18n.scanning);
                 $('#wpfg-progress-fill').css('width', '0%');
                 self.updateRing(0);
                 $('#wpfg-scan-files-count').text('0');
                 $('#wpfg-scan-issues-count').text('0');
+                $('#wpfg-live-file-path').text('');
 
                 self.ajax('wpfg_start_scan', { scan_type: type }, function(resp) {
                     if (resp.success) {
@@ -75,15 +80,16 @@
                 if (!sessionId) return;
                 self.ajax('wpfg_cancel_scan', { session_id: sessionId }, function() {
                     scanning = false;
-                    $('#wpfg-start-scan').prop('disabled', false);
+                    $('.wpfg-start-scan').prop('disabled', false).removeClass('wpfg-btn-scanning');
                     $('#wpfg-cancel-scan').hide();
                     $('#wpfg-scan-status').text('Cancelled.');
+                    $('#wpfg-live-file-path').text('');
                 });
             });
         },
 
         updateRing: function(pct) {
-            var circumference = 2 * Math.PI * 42; // r=42
+            var circumference = 2 * Math.PI * 50; // r=50
             var offset = circumference - (pct / 100) * circumference;
             $('#wpfg-ring-fill').css('stroke-dashoffset', offset);
             $('#wpfg-progress-pct').text(pct);
@@ -101,22 +107,65 @@
                 var pct = total > 0 ? Math.round((d.processed / total) * 100) : 100;
                 $('#wpfg-progress-fill').css('width', pct + '%');
                 self.updateRing(pct);
-                $('#wpfg-scan-status').text(d.processed + ' / ' + total + ' files');
+                $('#wpfg-scan-status').text(d.processed.toLocaleString() + ' / ' + total.toLocaleString() + ' files');
                 $('#wpfg-scan-files-count').text(d.processed.toLocaleString());
-                $('#wpfg-scan-issues-count').text((d.issues || 0).toLocaleString());
+                $('#wpfg-scan-issues-count').text((d.total_issues || 0).toLocaleString());
+
+                // Live file path ticker.
+                if (d.current_file) {
+                    $('#wpfg-live-file-path').text(d.current_file);
+                }
+
+                // Pulse the issues counter when threats found.
+                if (d.total_issues > 0) {
+                    $('#wpfg-scan-issues-count').addClass('wpfg-pulse');
+                    setTimeout(function() { $('#wpfg-scan-issues-count').removeClass('wpfg-pulse'); }, 600);
+                }
+
+                // Live threat feed — show new threats as they are found.
+                if (d.batch_threats && d.batch_threats.length) {
+                    $('#wpfg-live-threats').slideDown(200);
+                    d.batch_threats.forEach(function(t) {
+                        if (self._seenThreats && self._seenThreats[t.file]) return;
+                        if (!self._seenThreats) self._seenThreats = {};
+                        self._seenThreats[t.file] = true;
+
+                        var sevClass = t.severity === 'critical' ? 'wpfg-threat-critical' : 'wpfg-threat-warning';
+                        var sevLabel = t.severity === 'critical' ? 'CRITICAL' : 'WARNING';
+                        var $row = $('<div class="wpfg-threat-item ' + sevClass + '">' +
+                            '<span class="wpfg-threat-badge">' + sevLabel + '</span>' +
+                            '<code class="wpfg-threat-file">' + self.escHtml(t.file) + '</code>' +
+                            '<span class="wpfg-threat-desc">' + self.escHtml(t.desc) + '</span>' +
+                            '</div>').hide();
+                        $('#wpfg-live-threats-list').prepend($row);
+                        $row.slideDown(200);
+
+                        // Keep max 10 items visible.
+                        var items = $('#wpfg-live-threats-list .wpfg-threat-item');
+                        if (items.length > 10) items.last().slideUp(200, function() { $(this).remove(); });
+                    });
+                }
 
                 if (d.done) {
                     self.updateRing(100);
-                    $('#wpfg-scan-status').text(wpfg.i18n.scan_complete);
+                    var doneMsg = wpfg.i18n.scan_complete + ' — ' + (d.total_issues || 0) + ' threat' + ((d.total_issues || 0) !== 1 ? 's' : '') + ' found.';
+                    $('#wpfg-scan-status').html('<strong>' + doneMsg + '</strong>');
+                    $('#wpfg-live-file-path').text('✓ Scan complete');
                     $('.wpfg-start-scan').prop('disabled', false).removeClass('wpfg-btn-scanning');
                     $('#wpfg-cancel-scan').hide();
                     setTimeout(function() {
                         window.location.href = wpfg.ajax_url.replace('admin-ajax.php', 'admin.php') + '?page=wpfg-scanner&session=' + sessionId;
-                    }, 800);
+                    }, 1500);
                 } else {
                     self.processBatch(sessionId, d.processed, total);
                 }
             });
+        },
+
+        escHtml: function(str) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
         },
 
         // --- Quarantine ---
@@ -151,15 +200,29 @@
                 var btn = $(this);
                 var type = $('#wpfg-backup-type').val();
                 btn.prop('disabled', true);
-                $('#wpfg-backup-status').text('Creating backup...');
+                $('#wpfg-backup-status').text('Creating backup... This may take several minutes for large sites. Please wait.');
 
-                self.ajax('wpfg_create_backup', { backup_type: type }, function(resp) {
-                    btn.prop('disabled', false);
-                    if (resp.success) {
-                        $('#wpfg-backup-status').text('Backup created! Refreshing...');
-                        location.reload();
-                    } else {
-                        $('#wpfg-backup-status').text(resp.data ? resp.data.message : wpfg.i18n.error);
+                $.ajax({
+                    url: wpfg.ajax_url,
+                    type: 'POST',
+                    data: { action: 'wpfg_create_backup', nonce: wpfg.nonce, backup_type: type },
+                    timeout: 600000, // 10 minute timeout for large backups.
+                    success: function(resp) {
+                        btn.prop('disabled', false);
+                        if (resp.success) {
+                            $('#wpfg-backup-status').text('Backup created! Refreshing...');
+                            location.reload();
+                        } else {
+                            $('#wpfg-backup-status').text(resp.data ? resp.data.message : wpfg.i18n.error);
+                        }
+                    },
+                    error: function(xhr, status) {
+                        btn.prop('disabled', false);
+                        if (status === 'timeout') {
+                            $('#wpfg-backup-status').text('Backup timed out. Try a smaller backup type (Plugins, Themes, or Uploads).');
+                        } else {
+                            $('#wpfg-backup-status').text('Backup failed. The server may have run out of time or memory.');
+                        }
                     }
                 });
             });
