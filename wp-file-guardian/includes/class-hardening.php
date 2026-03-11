@@ -319,18 +319,20 @@ class WPFG_Hardening {
             'match'   => ( (bool) WPFG_Settings::get( 'hardening_block_php_uploads', false ) ) === $php_block_exists,
         );
 
-        // REST API: check if filter is hooked.
+        // REST API: check if OUR filter is hooked (not another plugin's).
         $rest_setting = (bool) WPFG_Settings::get( 'hardening_disable_rest_unauth', false );
-        $rest_actual  = has_filter( 'rest_authentication_errors', array( __CLASS__, 'restrict_rest_api' ) ) !== false;
+        $rest_actual  = has_filter( 'rest_authentication_errors', array( 'WPFG_Hardening', 'restrict_rest_api' ) ) !== false;
         $results['hardening_disable_rest_unauth'] = array(
             'setting' => $rest_setting,
             'actual'  => $rest_actual,
             'match'   => $rest_setting === $rest_actual,
         );
 
-        // Hide WP version: check if generator action is removed.
+        // Hide WP version: check if OUR filter is hooked.
+        // Note: other plugins may also add the_generator filter, so we check
+        // our specific hooks (remove_version_query on script_loader_src).
         $version_setting = (bool) WPFG_Settings::get( 'hardening_hide_wp_version', false );
-        $version_actual  = has_filter( 'the_generator', '__return_empty_string' ) !== false;
+        $version_actual  = has_filter( 'script_loader_src', array( 'WPFG_Hardening', 'remove_version_query' ) ) !== false;
         $results['hardening_hide_wp_version'] = array(
             'setting' => $version_setting,
             'actual'  => $version_actual,
