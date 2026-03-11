@@ -226,9 +226,20 @@ class WPFG_Ajax_Handler {
                     }
                     break;
                 case 'ignore':
-                    // Expect result IDs for ignore.
-                    WPFG_Scanner::ignore_result( absint( $path ), true );
-                    $r = true;
+                    // Resolve file path to scan result ID(s) and ignore them.
+                    global $wpdb;
+                    $result_ids = $wpdb->get_col( $wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}wpfg_scan_results WHERE file_path = %s AND is_ignored = 0",
+                        $path
+                    ) );
+                    if ( ! empty( $result_ids ) ) {
+                        foreach ( $result_ids as $rid ) {
+                            WPFG_Scanner::ignore_result( absint( $rid ), true );
+                        }
+                        $r = true;
+                    } else {
+                        $r = new WP_Error( 'not_found', 'No scan result found for this file.' );
+                    }
                     break;
                 default:
                     $r = new WP_Error( 'unknown', 'Unknown action' );
