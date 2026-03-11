@@ -84,17 +84,27 @@ class WPFG_Scanner {
         $excluded   = ! empty( $sess_opts['excluded_paths'] ) ? $sess_opts['excluded_paths'] : $settings['excluded_paths'];
         $skip_ext   = ! empty( $sess_opts['excluded_extensions'] ) ? $sess_opts['excluded_extensions'] : $settings['excluded_extensions'];
 
+        // Always exclude the plugin's own directory to avoid false positives
+        // (our malware pattern definitions contain the very strings we scan for).
+        $self_dir = wp_normalize_path( WPFG_PLUGIN_DIR );
+
         $files = array();
         foreach ( (array) $scan_paths as $rel_path ) {
             $abs_path = ABSPATH . ltrim( $rel_path, '/' );
             if ( ! is_dir( $abs_path ) ) {
                 if ( is_file( $abs_path ) ) {
-                    $files[] = wp_normalize_path( $abs_path );
+                    $norm = wp_normalize_path( $abs_path );
+                    if ( strpos( $norm, $self_dir ) !== 0 ) {
+                        $files[] = $norm;
+                    }
                 }
                 continue;
             }
             foreach ( WPFG_Filesystem::scan_directory( $abs_path, $excluded, $skip_ext ) as $file ) {
-                $files[] = wp_normalize_path( $file );
+                $norm = wp_normalize_path( $file );
+                if ( strpos( $norm, $self_dir ) !== 0 ) {
+                    $files[] = $norm;
+                }
             }
         }
 
@@ -138,6 +148,12 @@ class WPFG_Scanner {
         $issues      = 0;
         $scanned_size = 0;
 
+        // Build a set of verified plugin/theme slugs from wordpress.org
+        // to avoid false positives on legitimate code.
+        $verified_slugs = self::get_verified_slugs();
+        $plugins_dir    = wp_normalize_path( WP_PLUGIN_DIR . '/' );
+        $themes_dir     = wp_normalize_path( get_theme_root() . '/' );
+
         self::update_session( $session_id, array( 'status' => 'scanning' ) );
 
         foreach ( $batch as $file_path ) {
@@ -150,6 +166,9 @@ class WPFG_Scanner {
             $scanned_size += $size;
             $findings    = array();
             $notices     = array(); // Non-threat observations (recently modified, large file, etc.)
+
+            // Determine if file belongs to a verified wordpress.org plugin or theme.
+            $is_verified = self::is_verified_path( $file_path, $plugins_dir, $themes_dir, $verified_slugs );
 
             // Check for hidden files.
             $basename = basename( $file_path );
@@ -187,10 +206,18 @@ class WPFG_Scanner {
                 if ( false !== $content ) {
                     $mal_findings = WPFG_Malware_Patterns::scan_content( $content, $sensitivity );
                     foreach ( $mal_findings as $mf ) {
+                        $severity = $mf['severity'];
+                        // For verified wordpress.org plugins/themes, downgrade
+                        // pattern matches from critical/warning to info — these
+                        // are almost certainly false positives (e.g., Google Site Kit
+                        // uses exec() in its Composer autoloader).
+                        if ( $is_verified && in_array( $severity, array( 'critical', 'warning' ), true ) ) {
+                            $severity = 'info';
+                        }
                         $findings[] = array(
                             'type'     => 'malware_pattern',
-                            'severity' => $mf['severity'],
-                            'desc'     => $mf['label'],
+                            'severity' => $severity,
+                            'desc'     => $mf['label'] . ( $is_verified ? ' ' . __( '[verified plugin — likely false positive]', 'wp-file-guardian' ) : '' ),
                         );
                     }
                 }
@@ -478,5 +505,107 @@ class WPFG_Scanner {
     public static function cancel_session( $session_id ) {
         self::update_session( $session_id, array( 'status' => 'cancelled' ) );
         delete_transient( 'wpfg_scan_files_' . $session_id );
+    }
+
+    /**
+     * Get a set of verified plugin/theme slugs from wordpress.org.
+     * Uses cached results to avoid repeated API calls during a scan.
+     *
+     * @return array Associative array of slug => true.
+     */
+    private static function get_verified_slugs() {
+        $cached = get_transient( 'wpfg_verified_slugs' );
+        if ( is_array( $cached ) ) {
+            return $cached;
+        }
+
+        $slugs = array();
+
+        // Get all installed plugins and check which ones come from wordpress.org.
+        if ( ! function_exists( 'get_plugins' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        $all_plugins = get_plugins();
+        $update_data = get_site_transient( 'update_plugins' );
+
+        foreach ( $all_plugins as $plugin_file => $plugin_data ) {
+            $slug = dirname( $plugin_file );
+            if ( '.' === $slug ) {
+                $slug = basename( $plugin_file, '.php' );
+            }
+            // A plugin is from wordpress.org if it appears in the update check data
+            // (either as up-to-date, or with an available update).
+            $in_repo = false;
+            if ( $update_data ) {
+                if ( isset( $update_data->response[ $plugin_file ] ) ||
+                     isset( $update_data->no_update[ $plugin_file ] ) ) {
+                    $in_repo = true;
+                }
+            }
+            if ( $in_repo ) {
+                $slugs[ $slug ] = true;
+            }
+        }
+
+        // Get all installed themes and check which come from wordpress.org.
+        $all_themes  = wp_get_themes();
+        $theme_data  = get_site_transient( 'update_themes' );
+        foreach ( $all_themes as $theme_slug => $theme_obj ) {
+            $in_repo = false;
+            if ( $theme_data ) {
+                if ( isset( $theme_data->response[ $theme_slug ] ) ||
+                     isset( $theme_data->no_update[ $theme_slug ] ) ) {
+                    $in_repo = true;
+                }
+            }
+            if ( $in_repo ) {
+                $slugs[ $theme_slug ] = true;
+            }
+        }
+
+        // Cache for 12 hours.
+        set_transient( 'wpfg_verified_slugs', $slugs, 12 * HOUR_IN_SECONDS );
+
+        return $slugs;
+    }
+
+    /**
+     * Check if a file path belongs to a verified wordpress.org plugin or theme.
+     *
+     * @param string $file_path   Normalized absolute file path.
+     * @param string $plugins_dir Normalized plugins directory with trailing slash.
+     * @param string $themes_dir  Normalized themes directory with trailing slash.
+     * @param array  $verified    Associative array of verified slugs.
+     * @return bool
+     */
+    private static function is_verified_path( $file_path, $plugins_dir, $themes_dir, $verified ) {
+        $norm = wp_normalize_path( $file_path );
+
+        // Check plugins.
+        if ( strpos( $norm, $plugins_dir ) === 0 ) {
+            $relative = substr( $norm, strlen( $plugins_dir ) );
+            $slug = strtok( $relative, '/' );
+            if ( $slug && isset( $verified[ $slug ] ) ) {
+                return true;
+            }
+        }
+
+        // Check themes.
+        if ( strpos( $norm, $themes_dir ) === 0 ) {
+            $relative = substr( $norm, strlen( $themes_dir ) );
+            $slug = strtok( $relative, '/' );
+            if ( $slug && isset( $verified[ $slug ] ) ) {
+                return true;
+            }
+        }
+
+        // WordPress core files (wp-admin, wp-includes) are also trusted.
+        $wp_admin    = wp_normalize_path( ABSPATH . 'wp-admin/' );
+        $wp_includes = wp_normalize_path( ABSPATH . 'wp-includes/' );
+        if ( strpos( $norm, $wp_admin ) === 0 || strpos( $norm, $wp_includes ) === 0 ) {
+            return true;
+        }
+
+        return false;
     }
 }
