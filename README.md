@@ -6,198 +6,346 @@ It is built for administrators who want a practical, centralized security layer 
 
 ---
 
-## Overview
+## Requirements
 
-WordPress websites are common targets for malware injections, file tampering, brute-force login attempts, hidden backdoors, database spam, and unauthorized code changes.  
-WP File Guardian helps you detect these threats early, investigate them faster, and take action directly from the WordPress admin panel.
-
-The plugin combines:
-
-- file integrity monitoring
-- malware pattern detection
-- database scanning
-- login protection
-- risk scoring
-- quarantine and repair workflows
-- backup support
-- audit visibility
-
-All in one unified security dashboard.
+- WordPress 5.8 or higher
+- PHP 7.4 or higher
+- MySQL 5.6+ or MariaDB 10.1+
 
 ---
 
-## Key Features
+## Installation
+
+1. Download the latest release (`wp-file-guardian.zip`) from the repository
+2. In WordPress admin, go to **Plugins > Add New > Upload Plugin**
+3. Upload the zip file and click **Install Now**
+4. Click **Activate**
+5. The **WP File Guardian** menu will appear in the WordPress admin sidebar
+
+**Manual installation:**
+1. Extract the zip and upload the `wp-file-guardian` folder to `/wp-content/plugins/`
+2. Activate the plugin from the **Plugins** page
+
+---
+
+## Quick Start Guide
+
+After activation, follow these steps:
+
+1. Go to **WP File Guardian > Dashboard** to see the security overview
+2. Run a **Full Scan** to analyze all WordPress files
+3. Run a **Database Scan** to check for malicious database entries
+4. Review the **Security Score** to understand your site's overall health
+5. Enable **Security Hardening** measures for immediate protection
+6. Set up **Two-Factor Authentication** for admin accounts
+7. Configure **Firewall Rules** to block known threats
+
+---
+
+## Features & Usage Guide
 
 ### 1. File Scanner
-Scan WordPress core files, plugins, themes, and uploads for suspicious patterns such as:
 
-- obfuscated PHP code
-- `eval`, `base64_decode`, `gzinflate`, `str_rot13`, and similar risky functions
-- hidden shells and backdoors
-- unexpected executable files in unsafe locations
-- modified core files
-- recently changed files
-- unauthorized PHP files inside uploads directories
+**Location:** WP File Guardian > Scanner
 
-This helps identify malware injections and suspicious code before they cause further damage.
+Scans WordPress core files, plugins, themes, and uploads for suspicious patterns such as obfuscated PHP code, `eval`/`base64_decode` calls, hidden shells, backdoors, and unauthorized executable files.
+
+**How to use:**
+- Click **Full Scan** to scan all WordPress files (recommended for first use)
+- Click **Quick Scan** to scan only recently modified files
+- Review results sorted by severity: Critical, Warning, Info, Notice
+- Use the checkboxes to select multiple files, then apply bulk actions (Quarantine, Ignore, Delete)
+- Click individual file actions to quarantine, view details, or delete specific files
+
+**Scan results are color-coded:**
+- **Critical (red):** Likely malware or backdoor, action needed immediately
+- **Warning (orange):** Suspicious pattern detected, manual review recommended
+- **Info (blue):** Informational finding, usually low risk
+- **Notice (gray):** Minor observation, no action needed
 
 ---
 
 ### 2. Database Scanner
-Detect potentially malicious or suspicious content inside the WordPress database, including:
 
-- injected script tags
-- hidden spam links
-- encoded payloads
-- suspicious admin options
-- altered site URLs or redirect entries
-- rogue cron entries
-- suspicious content inside posts, options, widgets, and metadata
+**Location:** WP File Guardian > DB Scanner
 
-This is especially useful when attackers inject malware into the database instead of the filesystem.
+Detects potentially malicious or suspicious content inside the WordPress database including injected script tags, hidden spam links, encoded payloads, suspicious admin options, altered site URLs, and rogue cron entries.
+
+**How to use:**
+- Click **Start DB Scan** to begin scanning database tables
+- Results show the affected table, row, and type of suspicious content
+- Use the action buttons on each finding:
+  - **View:** See the actual content of the suspicious entry
+  - **Clean:** Remove or sanitize the malicious content
+  - **Ignore:** Mark the finding as a false positive and hide it
 
 ---
 
 ### 3. File Integrity Monitoring
-Monitor critical WordPress files and detect changes over time.  
-WP File Guardian can help you answer questions such as:
 
-- Which file changed?
-- When did it change?
-- Was it expected or suspicious?
-- Is the modified file part of WordPress core, a plugin, or a theme?
+**Location:** WP File Guardian > Monitor
 
-This makes incident response faster and more structured.
+Monitors critical WordPress files and detects changes over time. Tracks which files changed, when they changed, and whether the change was expected.
+
+**How to use:**
+- The monitor runs automatically on a configurable schedule
+- View the list of detected file changes with timestamps
+- Compare file changes against known WordPress core checksums
+- Receive email notifications when critical files are modified
 
 ---
 
 ### 4. Login Guard
-Protect the WordPress login area against abuse and suspicious access attempts with features such as:
 
-- failed login tracking
-- suspicious IP detection
-- brute-force indicators
-- admin account activity visibility
-- abnormal login behavior monitoring
-- optional lockout or alert logic
+**Location:** WP File Guardian > Login Guard
 
-This reduces the risk of unauthorized access to your admin panel.
+Protects the WordPress login area against brute-force attacks and suspicious access attempts.
 
----
-
-### 5. Risk Score Engine
-WP File Guardian calculates a risk score based on detected indicators across the website.
-
-Examples of risk factors may include:
-
-- suspicious code signatures
-- core file modifications
-- abnormal login attempts
-- executable files in upload folders
-- database injection patterns
-- multiple simultaneous warning signals
-
-This gives administrators a fast way to understand whether the site is in a low, medium, high, or critical security state.
+**How to use:**
+- View failed login attempts with IP addresses and timestamps
+- See which usernames attackers are trying
+- Monitor suspicious IP addresses
+- Automatic email notifications are sent when unauthorized login attempts are detected
+- Configure lockout thresholds in the settings
 
 ---
 
-### 6. Quarantine and Repair Workflow
-Instead of immediately deleting suspicious files, WP File Guardian is designed to support safer handling options such as:
+### 5. Security Score
 
-- quarantining suspicious files
-- reviewing flagged items before deletion
-- repairing changed files
-- restoring known-good versions
-- isolating dangerous files from public execution
+**Location:** WP File Guardian > Security Score
 
-This helps reduce accidental damage during cleanup.
+Calculates an overall security grade (A+ through F) based on detected risks across your entire website.
 
----
+**How to use:**
+- Visit the Security Score page to see your current grade and numeric score
+- The score gauge visually shows your security level with color coding
+- Review the breakdown of risk factors contributing to your score
+- Follow the recommendations to improve your grade
+- Re-scan after making changes to see your updated score
 
-### 7. Backup Awareness and Recovery Support
-Security incidents often require rollback capability. WP File Guardian supports a security workflow that includes backup awareness and recovery-oriented operations.
-
-Depending on your project configuration, the plugin can be extended for:
-
-- local backups
-- remote backup storage
-- recovery preparation
-- rollback assistance after infection cleanup
+**Score ranges:**
+- **A+ / A (90-100):** Excellent security posture
+- **B (80-89):** Good, minor improvements possible
+- **C (70-79):** Fair, several issues need attention
+- **D (60-69):** Poor, significant risks detected
+- **F (below 60):** Critical, immediate action required
 
 ---
 
-### 8. Security Logs and Audit Trail
-Track relevant activity in one place, including:
+### 6. Security Hardening
 
-- scan results
-- detected risks
-- file changes
-- cleanup actions
-- login events
-- repair operations
-- backup-related events
+**Location:** WP File Guardian > Hardening
 
-A clear audit trail makes troubleshooting, documentation, and recovery much easier.
+One-click security hardening measures to strengthen your WordPress installation.
 
----
+**Available measures:**
+| Measure | Description |
+|---------|-------------|
+| **Disable File Editor** | Disables the built-in WordPress theme and plugin file editor to prevent code changes from the admin area |
+| **Disable XML-RPC** | Disables XML-RPC and removes the X-Pingback header. Prevents brute-force and DDoS attacks via XML-RPC |
+| **Security Headers** | Adds X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, and Permissions-Policy headers |
+| **Block PHP in Uploads** | Adds an .htaccess rule to prevent PHP execution inside the uploads directory |
+| **Restrict REST API** | Blocks REST API access for unauthenticated visitors. Logged-in users are unaffected |
+| **Hide WordPress Version** | Removes the WordPress version from the page source, RSS feeds, and enqueued asset URLs |
 
-### 9. Centralized WordPress Admin Dashboard
-All important security actions can be managed from a central admin interface:
-
-- scan status
-- risk level
-- suspicious files
-- database alerts
-- login anomalies
-- recommendations
-- cleanup actions
-- logs and reports
-
-This avoids jumping between multiple plugins and external tools.
+**How to use:**
+- Click **Enable** next to each measure to activate it
+- Click **Disable** to deactivate a previously enabled measure
+- The status badge shows **Active** (blue) or **Inactive** (gray)
+- Use the **Test Server Status** button to verify your server configuration after changes
 
 ---
 
-## Why WP File Guardian?
+### 7. Firewall / WAF
 
-Many WordPress site owners only realize they have been compromised after:
+**Location:** WP File Guardian > Firewall
 
-- Google blacklists the website
-- visitors report strange redirects
-- hosting providers suspend the account
-- SEO traffic collapses
-- unknown admin users appear
-- malware reinfects the site after incomplete cleanup
+A Web Application Firewall that blocks malicious requests before they reach WordPress.
 
-WP File Guardian is designed to reduce that delay and give administrators practical visibility before a small issue becomes a major incident.
+**How to use:**
+- View the **Firewall Overview** dashboard showing blocked requests today, this week, active rules, and auto-banned IPs
+- **Add a rule:** Select a rule type (IP Blacklist, IP Whitelist, Country Block, or User Agent Block), enter the value, and click **Add Rule**
+- **Manage rules:** Toggle rules on/off, or delete rules from the Active Rules table
+- **View logs:** Check the firewall log to see blocked requests with timestamps, IPs, and reasons
 
----
-
-## Typical Use Cases
-
-WP File Guardian is useful for:
-
-- agencies managing multiple WordPress sites
-- freelancers maintaining client websites
-- business owners who need basic security oversight
-- administrators recovering infected WordPress installations
-- developers who want to track unexpected file changes
-- site operators looking for a combined file + database security workflow
+**Rule types:**
+| Type | Value Example | Description |
+|------|---------------|-------------|
+| IP Blacklist | `192.168.1.100` or `10.0.0.0/8` | Block a specific IP or CIDR range |
+| IP Whitelist | `203.0.113.50` | Always allow this IP (bypasses all rules) |
+| Country Block | `CN`, `RU` | Block all traffic from a country (ISO code) |
+| UA Block | `BadBot` | Block requests matching a User Agent pattern |
 
 ---
 
-## What It Can Help Detect
+### 8. Vulnerability Scanner
 
-WP File Guardian can help identify indicators such as:
+**Location:** WP File Guardian > Vulnerabilities
 
-- malware injections
-- hidden PHP backdoors
-- cloaked redirect code
-- SEO spam injections
-- suspicious admin activity
-- unauthorized file modifications
-- malicious code inside database records
-- risky plugin or theme file changes
-- exploit leftovers after partial cleanup
+Scans installed plugins and themes against known vulnerability databases.
+
+**How to use:**
+- Click **Start Vulnerability Scan** to check all installed plugins and themes
+- Review the results categorized by severity: Critical, High, Medium, Low
+- See details about each vulnerability and available updates
+- Click **Update** to update vulnerable plugins/themes directly
+- Click **Ignore** to dismiss known/accepted vulnerabilities
+
+---
+
+### 9. Two-Factor Authentication (2FA)
+
+**Location:** WP File Guardian > Two-Factor
+
+Adds TOTP-based two-factor authentication to WordPress accounts using apps like Google Authenticator, Authy, or Microsoft Authenticator.
+
+**How to enable 2FA:**
+1. Go to the Two-Factor page
+2. Click **Enable 2FA**
+3. A QR code and manual entry key will be displayed
+4. Scan the QR code with your authenticator app
+5. **Save the backup codes** displayed on screen (store them securely)
+6. Enter a code from your authenticator app in the **Test Your Code** field and click **Verify** to confirm setup
+
+**How to use after setup:**
+- When logging in, enter your password as usual
+- You will be prompted for a 6-digit verification code
+- Open your authenticator app and enter the current code
+- If you lose your device, use one of the backup codes
+
+**Admin management:**
+- View 2FA status for all users in the users table
+- Admins can disable 2FA for other users if needed
+- Regenerate backup codes if they are lost or compromised
+
+---
+
+### 10. File Permissions
+
+**Location:** WP File Guardian > Permissions
+
+Checks file and directory permissions for security issues (Linux/Unix servers only).
+
+**How to use:**
+- Click **Check Permissions** to scan all WordPress files and directories
+- Results show files with insecure permissions (e.g., world-writable files)
+- Click **Fix** to automatically correct permissions to recommended values
+- Use **Fix All** for bulk permission correction
+
+**Recommended permissions:**
+| Item | Permission |
+|------|-----------|
+| Directories | `755` |
+| Files | `644` |
+| wp-config.php | `600` |
+| .htaccess | `644` |
+
+> **Note:** This feature is not available on Windows servers, as they use NTFS ACLs instead of Unix-style permissions.
+
+---
+
+### 11. Quarantine
+
+**Location:** WP File Guardian > Quarantine
+
+Safely isolates suspicious files instead of deleting them immediately.
+
+**How to use:**
+- Quarantined files are moved to a secure directory and made non-executable
+- View all quarantined files with original path, date, and reason
+- Click **Restore** to return a file to its original location
+- Click **Delete** to permanently remove a quarantined file
+- Files are automatically quarantined when critical threats are detected (if enabled in settings)
+
+---
+
+### 12. Backup & Repair
+
+**Location:** WP File Guardian > Backups / Repair
+
+Create security-oriented backups and repair modified WordPress core files.
+
+**Backups:**
+- Click **Create Backup** to create a backup of critical files
+- Download or restore from previous backups
+- Backups include a snapshot of the current file state before cleanup
+
+**Repair:**
+- Compare installed WordPress core files against official checksums
+- Click **Repair** to restore modified core files to their original versions
+- Reinstall plugins or themes from the WordPress.org repository
+
+---
+
+### 13. Logs & Audit Trail
+
+**Location:** WP File Guardian > Logs
+
+Track all security-related activity in one place.
+
+**Logged events include:**
+- Scan results and completion times
+- File quarantine and restore actions
+- Login attempts (successful and failed)
+- Hardening changes (enabled/disabled)
+- Firewall rule changes and blocked requests
+- Backup and repair operations
+- 2FA enable/disable events
+
+**How to use:**
+- Filter logs by type, date range, or severity
+- Export logs for external analysis or compliance
+- Clear old logs to free database space
+
+---
+
+### 14. Email Notifications
+
+WP File Guardian sends email notifications for important security events:
+
+| Event | Description |
+|-------|-------------|
+| **Scan Complete** | Summary report after a full or quick scan finishes, including total files scanned, critical/warning/info counts |
+| **Unauthorized Login** | Alert when a failed login attempt is detected from a suspicious IP |
+
+**Configuration:**
+- Notification settings can be configured in **WP File Guardian > Settings**
+- Emails are sent to the WordPress admin email by default
+- Scan emails are sent only once per scan (not per file)
+
+---
+
+### 15. Settings
+
+**Location:** WP File Guardian > Settings
+
+Configure plugin behavior:
+
+- **Scan settings:** File extensions to scan, directories to exclude, scan depth
+- **Quarantine settings:** Auto-quarantine critical files, quarantine directory
+- **Notification settings:** Email recipients, notification types
+- **Schedule settings:** Automatic scan frequency
+- **General settings:** Plugin capability requirements, cleanup on uninstall
+
+---
+
+## WP-CLI Support
+
+WP File Guardian includes WP-CLI commands for automation:
+
+```bash
+# Run a full scan
+wp wpfg scan --type=full
+
+# Run a quick scan
+wp wpfg scan --type=quick
+
+# View scan results
+wp wpfg results
+
+# Create a backup
+wp wpfg backup create
+```
 
 ---
 
@@ -205,88 +353,12 @@ WP File Guardian can help identify indicators such as:
 
 The plugin follows a layered security workflow:
 
-1. **Scan**  
-   It analyzes files and database content for suspicious indicators.
-
-2. **Compare**  
-   It checks changes against expected WordPress structures and known patterns.
-
-3. **Score**  
-   It assigns a risk level based on the severity and number of detections.
-
-4. **Report**  
-   It displays findings in the WordPress admin dashboard.
-
-5. **Act**  
-   It allows administrators to review, quarantine, repair, or remove suspicious items.
-
-6. **Monitor**  
-   It keeps track of new changes, login anomalies, and recurring security events.
-
----
-
-## Main Modules
-
-### File Protection Module
-Focused on code-level threats in:
-
-- WordPress core
-- themes
-- plugins
-- uploads
-- custom directories
-
-### Database Protection Module
-Focused on suspicious content stored in:
-
-- `wp_options`
-- `wp_posts`
-- `wp_postmeta`
-- widgets
-- transients
-- custom tables
-
-### Access Protection Module
-Focused on:
-
-- login abuse
-- suspicious authentication patterns
-- admin-related anomalies
-
-### Recovery Module
-Focused on:
-
-- quarantine
-- repair
-- cleanup
-- backup-aware response
-
----
-
-## Installation
-
-1. Upload the plugin folder to your `/wp-content/plugins/` directory  
-   **or**
-2. Install the plugin through the WordPress admin panel
-3. Activate **WP File Guardian**
-4. Open the plugin dashboard from the WordPress admin menu
-5. Run the first full scan
-6. Review the risk report and recommendations
-
----
-
-## Recommended First Steps After Installation
-
-After activation, it is recommended to:
-
-1. Run a full file scan
-2. Run a database scan
-3. Review the highest-risk findings first
-4. Check modified core files
-5. Inspect suspicious files in the uploads directory
-6. Review login-related warnings
-7. Create or verify backups before cleanup
-8. Quarantine instead of deleting when unsure
+1. **Scan** - Analyzes files and database content for suspicious indicators
+2. **Compare** - Checks changes against expected WordPress structures and known patterns
+3. **Score** - Assigns a risk level based on the severity and number of detections
+4. **Report** - Displays findings in the WordPress admin dashboard
+5. **Act** - Allows administrators to review, quarantine, repair, or remove suspicious items
+6. **Monitor** - Keeps track of new changes, login anomalies, and recurring security events
 
 ---
 
@@ -294,101 +366,34 @@ After activation, it is recommended to:
 
 WP File Guardian is built around three principles:
 
-### Visibility
-You should be able to see what changed, where it changed, and why it matters.
-
-### Safety
-Potentially dangerous files should be reviewed or isolated before destructive actions are taken.
-
-### Recoverability
-A good security workflow is not only about detection, but also about rollback, repair, and controlled cleanup.
+- **Visibility:** You should be able to see what changed, where it changed, and why it matters
+- **Safety:** Potentially dangerous files should be reviewed or isolated before destructive actions are taken
+- **Recoverability:** A good security workflow is not only about detection, but also about rollback, repair, and controlled cleanup
 
 ---
 
 ## Performance Considerations
 
-Security scans can be resource-intensive on large websites. WP File Guardian is intended to be implemented with performance-aware strategies such as:
+Security scans can be resource-intensive on large websites. WP File Guardian uses:
 
-- batched processing
-- scheduled scans
-- selective directory analysis
-- controlled file access
-- limited-depth scanning where needed
-- safe timeout handling
+- Batched processing to avoid timeouts
+- Scheduled scans during low-traffic periods
+- Selective directory analysis
+- Safe timeout handling
 
 This helps keep the admin experience usable even on larger WordPress installations.
 
 ---
 
-## Best Used Together With
+## Typical Use Cases
 
-For stronger WordPress security, WP File Guardian should be part of a broader hardening strategy that includes:
+WP File Guardian is useful for:
 
-- strong admin passwords
-- two-factor authentication
-- reliable backups
-- hosting-level malware protection
-- up-to-date plugins and themes
-- minimal plugin footprint
-- restricted file permissions
-- disabled unused accounts
-- least-privilege admin practices
-
----
-
-## Important Notes
-
-WP File Guardian is designed to assist with security analysis and incident response, but no security plugin can guarantee complete protection against every attack method.
-
-It should be used as part of a layered security strategy, not as a single point of trust.
-
-Always verify suspicious findings before deleting files or database entries, especially on production websites.
-
----
-
-## Roadmap
-
-Planned and expandable areas may include:
-
-- scheduled automatic scans
-- email alerts and notifications
-- advanced quarantine manager
-- one-click repair workflows
-- remote backup integrations
-- whitelist / ignore rules
-- scan profiles
-- multisite support
-- REST API endpoints
-- exportable scan reports
-- threat signature updates
-- deeper integrity baselines
-
----
-
-## Who This Plugin Is For
-
-WP File Guardian is ideal for users who want:
-
-- a serious WordPress security utility
-- visibility into file and database threats
-- faster detection of suspicious changes
-- actionable risk analysis
-- recovery-oriented workflows
-- a centralized admin security dashboard
-
----
-
-## Development Goals
-
-The long-term goal of WP File Guardian is to become a professional WordPress security operations plugin that combines:
-
-- detection
-- monitoring
-- risk analysis
-- incident response
-- recovery support
-
-inside a single WordPress-native system.
+- Agencies managing multiple WordPress sites
+- Freelancers maintaining client websites
+- Business owners who need basic security oversight
+- Administrators recovering infected WordPress installations
+- Developers who want to track unexpected file changes
 
 ---
 
@@ -398,20 +403,19 @@ Contributions, ideas, bug reports, and feature suggestions are welcome.
 
 You can contribute by:
 
-- reporting bugs
-- suggesting improvements
-- improving detection rules
-- optimizing scan performance
-- refining the admin UX
-- submitting pull requests
+- Reporting bugs
+- Suggesting improvements
+- Improving detection rules
+- Optimizing scan performance
+- Submitting pull requests
 
 ---
 
 ## License
 
-This project can be distributed under the license defined in the repository.
+This project is licensed under the **GNU General Public License v2.0 or later** (GPL-2.0-or-later).
 
-If no license file is included yet, add the appropriate open-source or commercial license before public release.
+See the [LICENSE](LICENSE) file for the full license text.
 
 ---
 
