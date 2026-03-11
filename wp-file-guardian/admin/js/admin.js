@@ -1107,42 +1107,45 @@
 
             $('#wpfg-check-permissions').on('click', function() {
                 var btn = $(this);
-                btn.prop('disabled', true);
-                $('#wpfg-perm-status').text('Scanning file permissions...');
+                btn.prop('disabled', true).text('Scanning...');
+                $('#wpfg-perm-status').text('Scanning file permissions...').show();
+                $('#wpfg-perm-results').hide();
 
                 self.ajax('wpfg_check_permissions', {}, function(resp) {
-                    btn.prop('disabled', false);
+                    btn.prop('disabled', false).html('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Scan Permissions');
                     $('#wpfg-perm-status').text('');
                     if (resp.success) {
                         var d = resp.data;
-                        if (d.is_windows) {
-                            $('#wpfg-perm-status').text('Note: Permission checking is limited on Windows servers.');
+                        if (d.windows) {
+                            $('#wpfg-perm-status').html('<span style="color:#dba617;font-weight:500;">&#9888; ' + (d.message || 'Permission checking is not available on Windows servers.') + '</span>').show();
+                            return;
                         }
+                        var issues = d.issues || [];
                         $('#wpfg-perm-results').show();
-                        $('#wpfg-perm-total').text(d.total || 0);
-                        $('#wpfg-perm-issues').text(d.issues || 0);
+                        $('#wpfg-perm-total').text(issues.length);
+                        $('#wpfg-perm-issues').text(issues.length);
 
-                        if (d.items && d.items.length) {
+                        if (issues.length) {
                             var html = '';
-                            d.items.forEach(function(item) {
+                            issues.forEach(function(item) {
                                 html += '<tr>';
-                                html += '<td><code>' + item.path + '</code></td>';
-                                html += '<td>' + item.current + '</td>';
-                                html += '<td>' + item.recommended + '</td>';
-                                html += '<td>' + item.reason + '</td>';
+                                html += '<td><code title="' + item.path + '">' + (item.relative || item.path) + '</code></td>';
+                                html += '<td><code style="color:#d63638;">' + (item.current_str || item.current) + '</code></td>';
+                                html += '<td><code style="color:#00a32a;">' + (item.rec_str || item.recommended) + '</code></td>';
+                                html += '<td>' + (item.type === 'directory' ? 'Directory' : 'File') + '</td>';
                                 html += '<td>';
-                                html += '<button class="button wpfg-fix-perm" data-path="' + item.path + '" data-perm="' + item.recommended + '">Fix</button>';
+                                html += '<button class="wpfg-btn wpfg-btn-primary wpfg-btn-sm wpfg-fix-perm" data-path="' + item.path + '" data-perm="' + (item.recommended || item.rec_str) + '">Fix</button>';
                                 html += '</td>';
                                 html += '</tr>';
                             });
                             $('#wpfg-perm-tbody').html(html);
                             $('#wpfg-perm-fix-all').show();
                         } else {
-                            $('#wpfg-perm-tbody').html('<tr><td colspan="5">All file permissions look good!</td></tr>');
+                            $('#wpfg-perm-tbody').html('<tr><td colspan="5" style="text-align:center; padding:20px; color:#00a32a; font-weight:500;">&#10003; All file permissions look good!</td></tr>');
                             $('#wpfg-perm-fix-all').hide();
                         }
                     } else {
-                        $('#wpfg-perm-status').text(resp.data ? resp.data.message : wpfg.i18n.error);
+                        $('#wpfg-perm-status').text(resp.data ? resp.data.message : wpfg.i18n.error).show();
                     }
                 });
             });
