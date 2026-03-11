@@ -226,10 +226,15 @@ class WPFG_Scanner {
             // Suspicious uploads (PHP in uploads directory).
             $uploads_dir = wp_normalize_path( wp_upload_dir()['basedir'] );
             if ( WPFG_Helpers::is_php_file( $file_path ) && strpos( wp_normalize_path( $file_path ), $uploads_dir ) === 0 ) {
-                // Skip known security plugin directories that legitimately store PHP in uploads.
+                // Skip empty index.php files — these are standard WordPress
+                // directory listing protection files, not threats.
+                $is_empty_index = ( 'index.php' === $basename && $size <= 50 );
+
+                // Skip known plugin directories that legitimately store PHP in uploads.
                 $known_plugin_dirs = array(
                     '/sucuri/',
                     '/starter-templates/',
+                    '/template-kits/',
                     '/elementor/',
                     '/woocommerce_uploads/',
                     '/wpforms/',
@@ -244,7 +249,9 @@ class WPFG_Scanner {
                         break;
                     }
                 }
-                if ( ! $is_known ) {
+                if ( $is_empty_index ) {
+                    // Empty index.php — standard WP directory protection, not a threat.
+                } elseif ( ! $is_known ) {
                     $findings[] = array( 'type' => 'suspicious_upload', 'severity' => 'critical', 'desc' => __( 'PHP file in uploads directory.', 'wp-file-guardian' ) );
                 } else {
                     $notices[] = array( 'type' => 'known_plugin_upload', 'severity' => 'info', 'desc' => __( 'PHP file in known plugin uploads directory.', 'wp-file-guardian' ) );
