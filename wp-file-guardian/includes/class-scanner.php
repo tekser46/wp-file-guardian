@@ -223,17 +223,16 @@ class WPFG_Scanner {
                     $mal_findings = WPFG_Malware_Patterns::scan_content( $content, $sensitivity );
                     foreach ( $mal_findings as $mf ) {
                         $severity = $mf['severity'];
-                        // For verified wordpress.org plugins/themes, downgrade
-                        // pattern matches from critical/warning to info — these
-                        // are almost certainly false positives (e.g., Google Site Kit
-                        // uses exec() in its Composer autoloader).
-                        if ( $is_verified && in_array( $severity, array( 'critical', 'warning' ), true ) ) {
-                            $severity = 'info';
+                        // For verified (active) plugins/themes, skip ALL pattern
+                        // matches entirely — these are legitimate code and showing
+                        // them as findings creates noise without security value.
+                        if ( $is_verified ) {
+                            continue;
                         }
                         $findings[] = array(
                             'type'     => 'malware_pattern',
                             'severity' => $severity,
-                            'desc'     => $mf['label'] . ( $is_verified ? ' ' . __( '[verified plugin — likely false positive]', 'wp-file-guardian' ) : '' ),
+                            'desc'     => $mf['label'],
                         );
                     }
                 }
